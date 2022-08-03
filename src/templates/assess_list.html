@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Assessments</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>Assessments</h1>
+        <br>
+
+        {% if assessments %}
+
+                <table class="table table-bordered table-striped">
+                    <tr>
+                        <th>n</th>
+                        <th>Image</th>
+                        <th>Package</th>
+                        <th>CVE ID</th>
+                        <th>Severity Level</th>
+                        <th>Content</th>
+                        <th>Author</th>
+                        <th>Action</th>
+                    </tr>
+                        {% for assess in assessments %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ assess.image }}</td>
+                                <td>{{ assess.package }}</td>
+                                <td>{{ assess.cve_id }}</td>
+                                <td>{{ assess.severity }}</td>
+                                <td>{{ assess.content }}</td>
+                                <td>{{ assess.author }}</td>
+                                <td><a href="/assess/delete?assess_id={{ assess._id['$oid'] }}" >Delete</a></td>
+                            </tr>
+                        {% endfor %}
+                </table>
+        {% endif %}
+    </div>
+</body>
+</html>

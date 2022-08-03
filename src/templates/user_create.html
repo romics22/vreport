@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Users</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>Create User</h1>
+        <form action="" method="post" role="form">
+            {{ form.csrf_token }}
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="email">Email:</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="email" name="email" value="{{ email }}" placeholder="first.last@domain">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="first_name">First Name:</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="first_name" name="first_name" value="{{ first_name }}" placeholder="">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="last_name">Last Name:</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="last_name" name="last_name" value="{{ last_name }}" placeholder="">
+                </div>
+            </div>
+            <div class="small">&nbsp;</div>
+            <button type="submit" name="button" class="btn btn-success">Create</button>
+        </form>
+        <br>
+        <br>
+
+        {% if users %}
+            <div>Users:</div>
+                <table class="table table-bordered table-striped">
+                    <tr>
+                        <th>n</th>
+                        <th>Email</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Id</th>
+                        <th>Action</th>
+                    </tr>
+                        {% for user in users %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>{{ user.first_name }}</td>
+                                <td>{{ user.last_name }}</td>
+                                <td>{{ user._id }}</td>
+                                <td><a href="/user/delete?user_id={{ user._id['$oid'] }}" >Delete</a></td>
+                            </tr>
+                        {% endfor %}
+                </table>
+        {% endif %}
+    </div>
+</body>
+</html>

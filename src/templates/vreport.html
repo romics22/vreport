@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vulnerability Reports</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>Vulnerability Reports for Docker Images</h1>
+        <p class="font-italic font-weight-light small">Version {{ version }}</p>
+        <a href="/clearcache" class="btn btn-secondary" role="button">Clear Cache</a>
+        <a href="/containers" class="btn btn-light" role="button">Running Images</a>
+        <div  class=small>&nbsp;</div>
+        <form action="" method="post" role="form">
+
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="severity">Severity Level:</label>
+                <div class="col-sm-10">
+                    <select id="severity" name="severity"  >
+                        {% if selected.severity == "All Levels" %}
+                            <option value="" selected>All Levels</option>
+                        {% else%}
+                            <option value="" >All Levels</option>
+                        {% endif%}
+                        {% if selected.severity == "Critical" %}
+                            <option value="Critical" selected>Critical</option>
+                        {% else%}
+                            <option value="Critical" >Critical</option>
+                        {% endif%}
+                        {% if selected.severity == "High" %}
+                            <option value="High" selected>High</option>
+                        {% else%}
+                            <option value="High" >High</option>
+                        {% endif%}
+                        {% if selected.severity == "Medium" %}
+                            <option value="Medium" selected>Medium</option>
+                        {% else%}
+                            <option value="Medium" >Medium</option>
+                        {% endif%}
+                        {% if selected.severity == "Low" %}
+                            <option value="Low" selected>Low</option>
+                        {% else%}
+                            <option value="Low" >Low</option>
+                        {% endif%}
+                        {% if selected.severity == "Negligible" %}
+                            <option value="Negligible" selected>Negligible</option>
+                        {% else%}
+                            <option value="Negligible" >Negligible</option>
+                        {% endif%}
+                        {% if selected.severity == "Unknown" %}
+                            <option value="Unknown" selected>Unknown</option>
+                        {% else%}
+                            <option value="Unknown" >Unknown</option>
+                        {% endif%}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="projects">Project:</label>
+                <div class="col-sm-10">
+                    <select id="projects" name="projects"  >
+                        {% if selected.projects == 0 %}
+                            <option value="0"  >All Projects</option>
+                        {% else %}
+                            <option value="0" >All Projects</option>
+                        {% endif %}
+                        {% for project in project_info.info %}
+                            {% if project.id == selected.projects|int %}
+                                <option value="{{ project.id }}" selected>{{project.name}}</option>
+                            {% else %}
+                                <option value="{{ project.id }}" >{{project.name}}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="cve">CVE ID:</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="cve" name="cve" value="{{ cve }}" placeholder="CVE ID you are looking for?">
+                </div>
+            </div>
+            <h5>Filter for images</h5>
+            <div class="form-check form-check">
+                <input type="checkbox" class="form-check-input" id="fixed" name="fixed"  {{ selected.fixed }}>
+                <label class="form-check-label" for="fixed">with fixed vulnerabilities</label>
+            </div>
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="gzrunning" name="gzrunning"  {{ selected.gzrunning }}>
+                <label class="form-check-label" for="gzrunning">running in Globale Zone</label>
+            </div>
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="pzrunning" name="pzrunning"  {{ selected.pzrunning }}>
+                <label class="form-check-label" for="pzrunning">running in Private Zone</label>
+            </div>
+            <div class="small">&nbsp;</div>
+            <button type="submit" name="button"  class="btn btn-success">Search</button>
+            <!--<button class="btn btn-primary" type="button" disabled>
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Loading...
+            </button>-->
+        </form>
+        <br>
+        {% if report_info.info != {} %}
+        <!-- div>info: {{ report_info.info[0] }}</div -->
+        <div>Search results: {{ results }}</div>
+        {% if results > 0 %}
+            {% if cve != "" %}
+                <!--{% set found = 0 -%}-->
+                {% for report in report_info.info %}
+                    {% if cve == report.cve_id %}
+                        <!--{% set found = found + 1 %}-->
+                        <table class="table table-bordered table-striped">
+                            <tr>
+                                <th width="150px">CVE ID</th>
+                                <th width="150px">Severity Level</th>
+                                <th >Images</th>
+                                <th >Packages</th>
+                            </tr>
+                            {% for report in report_info.info %}
+                                <tr>
+                                    <td>
+                                        {{ report.cve_id }}
+                                    </td>
+                                    <td>
+                                        {{ report.severity }}
+                                    </td>
+                                     <td VALIGN="TOP" >
+                                        {% for i in report.images %}
+
+                                            {{ i }} <br>
+
+                                        {% endfor %}
+                                    </td>
+                                     <td VALIGN="TOP" >
+                                        {% for p in report.packages %}
+                                            {{ p }} <br>
+                                        {% endfor %}
+                                    </td>
+
+                                </tr>
+                            {% endfor %}
+
+                        </table>
+                    {% endif %}
+
+                {% endfor %}
+                <!--{% if found == 0 %}
+                        <div class="alert alert-danger" role="alert">
+                            CVE-ID {{ cve }} ist nicht vorhanden.
+                        </div>
+                {% endif %}-->
+
+            {% else %}
+                    <table class="table table-bordered table-striped">
+                            <tr>
+                                <th>n</th>
+                                <th>Image</th>
+                                <th>Package</th>
+                                <th>CVE ID</th>
+                                <th>Severity Level</th>
+                            </tr>
+                            {% for report in report_info.info %}
+                                {% if selected.fixed %}
+                                    {% if report.vlist|length > 0 %}
+                                        <tr>
+                                            <td>{{ loop.index }}</td>
+                                            <td VALIGN="TOP" >{{ report.image }}</td>
+                                            <td>
+                                            {% for v in report.vlist %}
+                                                {{ v.package }} <br>
+                                            {% endfor %}
+                                            </td>
+                                            <td>
+                                            {% for v in report.vlist %}
+                                               <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> {{ v.fixed }} <br>
+                                            {% endfor %}
+                                            </td>
+                                            <td>
+                                                {% for v in report.vlist %}
+                                                    {{ v.severity }} <br>
+
+                                                {% endfor %}
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% else %}
+                                    <tr>
+                                        <td>{{ loop.index }}</td>
+                                        <td VALIGN="TOP" >{{ report.image }}</td>
+                                        <td>
+                                            {% for v in report.vlist %}
+                                                {{ v.package }} <br>
+                                            {% endfor %}
+                                        </td>
+                                        <td>
+                                        {% for v in report.vlist %}
+                                           <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> <br>
+                                        {% endfor %}
+                                        </td>
+                                        <td>
+                                            {% for v in report.vlist %}
+                                                {{ v.severity }} <br>
+
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+
+                            {% endfor %}
+
+                        </table>
+            {% endif %}
+            {% else %}
+              {% if cve != "" %}
+              <div class="alert alert-success" role="alert">CVE ID '{{ cve }}' not found!</div>
+              {% else %}
+              <div class="alert alert-success" role="alert">No images found!</div>
+              {% endif %}
+             {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>

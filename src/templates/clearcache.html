@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Clear Report Cache</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>Clear Report Cache</h1>
+        <br>
+        {% if report_info.info %}
+
+        <p>{{ report_info.info }}</p>
+        <p>Cache cleared</p>
+        <a href="/" class="btn btn-secondary" role="button">Back to Reports</a>
+
+        {% else %}
+            <span>no result: {{ report_info.info }}</span>
+        {% endif %}
+    </div>
+</body>
+</html>

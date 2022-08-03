@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Container Reports</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="container">
+        <h1>Running Images</h1>
+        <a href="/" class="btn btn-light" role="button">Back to Reports</a>
+        <div  class=small>&nbsp;</div>
+        {% if report_info.info %}
+         <table class="table table-bordered table-striped">
+         <tr>
+             <th>n</th>
+             <th>hostname</th>
+             <th>hostaddress</th>
+             <th>image</th>
+         </tr>
+         {% for item in report_info.info %}
+         <tr>
+             <td>{{ loop.index }}</td>
+             <td VALIGN="TOP" >{{ item.metric['hostname'] }}</td>
+             <td VALIGN="TOP" >{{ item.metric['hostaddr'] }}</td>
+             <td VALIGN="TOP" >{{ item.metric['image'] }}</td>
+         </tr>
+         {% endfor %}
+         </table>
+        {% endif %}
+    </div>
+</body>
+</html>
