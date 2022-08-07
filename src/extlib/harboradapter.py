@@ -2,26 +2,24 @@ from __future__ import print_function
 import time
 import swagger_client
 from swagger_client.rest import ApiException
-from pprint import pprint
 import argparse
 import logging
 import base64
 import binascii
-import json
 import ast
 import functools
 import sys
 
 ENV_DICT = {'test': {'source_reg': 'rmiharbor.ch',
-                     'target_reg': 'harbor-t-v10-aio.so.ch',
-                     'source_cred': 'YWRtaW46SGFyYm9yMTIzNDU=',
+                     'target_reg': '',
+                     'source_cred': '',
                      'target_cred': '',
                      'source_protocol': '',
                      'target_protocol': '',
                      'source_api': '',
                      'target_api': ''},
-            'prod': {'source_reg': 'harbor-aio.so.ch',
-                     'target_reg': 'harbor-v10-aio.so.ch',
+            'prod': {'source_reg': '',
+                     'target_reg': '',
                      'source_cred': '',
                      'target_cred': '',
                      'source_protocol': '',
@@ -51,6 +49,7 @@ class HarborAdapter(object):
                  log_level=logging.INFO):
         # TODO: find solution to use cache_maxsize in __api_call
         self.cache_maxsize = int(cache_maxsize)
+        self.stage_dev = stage_dev
         logging.basicConfig(format='%(asctime)s %(levelname)s:%(filename)s >>> %(message)s', level=log_level)
         self.log = logging.getLogger(__file__)
         cred_dict = self.__get_credentials(credentials)
@@ -58,7 +57,7 @@ class HarborAdapter(object):
         configuration = swagger_client.Configuration()
         configuration.username = cred_dict['username']
         configuration.password = cred_dict['password']
-		# TODO remove next line in production
+        # TODO remove next line in production
         configuration.verify_ssl = False
         configuration.host = '%s://%s/api%s' % (protocol, registry, api_version)
 
@@ -176,16 +175,16 @@ class HarborAdapter(object):
             pass
         return report
 
-    def get_projects(self, key_map, id=0):
+    def get_projects(self, key_map, p_id=0):
         project_list = []
         projects = self.__api_call(True, self.project_api.list_projects)
         try:
-            id = int(id)
+            p_id = int(p_id)
         except ValueError:
-            self.log.warn('project_id is not an integer')
-            id = 0
+            self.log.warning('project_id is not an integer')
+            p_id = 0
         for item in projects:
-            if item.project_id == id or id == 0:
+            if item.project_id == p_id or p_id == 0:
                 pro_dict = {}
                 for key in key_map:
                     try:
@@ -200,7 +199,7 @@ class HarborAdapter(object):
         return repo_list
 
     def get_tags(self, project_name, repository_name, tags_key, short_digest=True):
-        # modifiy repository_name by removing project name and url encode '/' e.g.:
+        # modify repository_name by removing project name and url encode '/' e.g.:
         # <project_name>/<repo_name_part1>/<repo_name_part2> -> <repo_name_part1><SLASH_URL_ENCODED><repo_name_part2>
         # adfinis/ebau/frontend -> ebau<SLASH_URL_ENCODED>frontend
         repo_name = SLASH_URL_ENCODED.join(repository_name.split(SLASH)[1:])
@@ -247,10 +246,10 @@ class HarborAdapter(object):
             self.log.error("Exception when calling ArtifactApi->get_vulnerabilities_addition: %s\n" % e)
         return v_addition
 
-    def get_harbor_projects(self, id=0):
+    def get_harbor_projects(self, p_id=0):
         project_key_map = [('name', 'name'), ('id', 'project_id')]
         tags_key = 'tags'
-        project_list = self.get_projects(project_key_map, id=id)
+        project_list = self.get_projects(project_key_map, p_id=p_id)
         # add repositories and tags to every project
         for project in project_list:
             repos = []
@@ -276,7 +275,7 @@ class HarborAdapter(object):
         cve_report = {'cve_id': '', 'severity': '', 'fixed': '', 'links': '',
                       'found': 0, 'images': [], 'packages': []}
         # get information about projects
-        project_info = self.get_harbor_projects(id=project_id)
+        project_info = self.get_harbor_projects(p_id=project_id)
         # get vulnerabilities
         for project in project_info:
             for repo in project['repos']:
@@ -333,6 +332,12 @@ class HarborAdapter(object):
             end = time.time()
             self.log.info('info scan computed: %s' % (end-start))
             return info
+
+
+def _exit_with_info(parser, item, choice):
+    print('%s must be %s' % (item, '|'.join(choice)))
+    parser.print_help()
+    sys.exit(1)
 
 
 def main():
