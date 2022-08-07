@@ -47,6 +47,7 @@ class Assessment(db.Document):
     image = db.StringField(max_length=150)
     package = db.StringField(max_length=30)
     cve_id = db.StringField(max_length=30)
+    cve_link = db.StringField(max_length=50)
     severity = db.StringField(max_length=30)
     content = db.EmbeddedDocumentField(Content)
 
@@ -97,10 +98,6 @@ VERSION = '2.2.0'
 
 @app.route('/user', methods=['GET'])
 def user_query():
-    test_c = User(email='ron.miller@romics.ch',
-                  first_name='Ron',
-                  last_name='Miller')
-    test_c.save()
     users = User.objects
     if not users:
         return jsonify({'error': 'data not found'})
@@ -158,15 +155,18 @@ def assess_query():
 @app.route('/assess/create', methods=['GET', 'POST'])
 def assess_create():
     form = PostForm(request.form)
+    for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
+        if request.args.get(field):
+            setattr(form, field, request.args.get(field))
+        else:
+            setattr(form, field, '')
     users = User.objects
     if not users:
         users = None
     else:
         users = json.loads(users.to_json())
-    log.info('rmi validate: %r' % form.validate())
     if request.method == 'POST':  # and form.validate():
         if request.form['author']:
-            log.info('rmi author: %r' % request.form['author'])
             author_id = request.form['author']
         else:
             author_id = None
@@ -175,6 +175,7 @@ def assess_create():
         asses = Assessment(image=request.form['image'],
                            package=request.form['package'],
                            cve_id=request.form['cve_id'],
+                           cve_link=request.form['cve_link'],
                            severity=request.form['severity'],
                            content=content,
                            author=author_id
@@ -182,6 +183,50 @@ def assess_create():
         asses.save()
         redirect('done')
     return render_template('assess_create.html', form=form, users=users)
+
+
+@app.route('/assess/update', methods=['GET', 'POST'])
+def assess_update():
+    form = PostForm(request.form)
+    assess = Assessment.objects(image=request.args.get('image'),
+                                package=request.args.get('package'),
+                                cve_id=request.args.get('cve_id'),
+                                severity=request.args.get('severity')).first()
+    if not assess:
+        return jsonify({'error': 'data not found'})
+    else:
+        for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
+            setattr(form, field, getattr(assess, field, ''))
+
+        for field in ['text', 'category']:
+            setattr(form, field, getattr(assess.content, field, ''))
+
+        users = User.objects
+        if not users:
+            users = None
+        else:
+            users = json.loads(users.to_json())
+        if request.method == 'POST':  # and form.validate():
+            assess.content.text = request.form['text']
+            assess.content.category = request.form['category']
+            assess.save()  # TODO update of author
+            return redirect(url_for('assess_query'))
+        return render_template('assess_update.html', form=form, users=users)
+
+
+@app.route('/assess/delete', methods=['GET'])
+def assess_delete():
+    # delete assessment by id, e.g ?assess_id=62ea78573656869bd50f5a7d
+    assess_id = request.args.get('assess_id')
+    if assess_id:
+        assess = Assessment.objects(id=assess_id).first()
+        if not assess:
+            return jsonify({'error': 'data not found'})
+        else:
+            assess.delete()
+        return redirect(url_for('assess_query'))
+    else:
+        return jsonify({'error': 'data not found'})
 
 
 @app.route("/", methods=['GET', 'POST'])
@@ -252,7 +297,7 @@ def reports():
                         return True
                     else:
                         # find indices of running_images
-                        i_images = [i for i,image in enumerate(running_images) if image==item]
+                        i_images = [i for i, image in enumerate(running_images) if image == item]
                         for i in i_images:
                             if running_hostaddr[i].startswith(network):
                                 return True
@@ -272,6 +317,27 @@ def reports():
                             package_list.append(report['packages'][count])
                     report['images'][:] = image_list
                     report['packages'][:] = package_list
+
+        # add Assessment information
+        a_report_info = []
+        for item in report_info['info']:
+            a_report = {}
+            image = item['image']
+            a_report['image'] = image
+            a_vlist = []
+            for v in item['vlist']:
+                assess = Assessment.objects(image=image,
+                                            package=v['package'],
+                                            cve_id=v['v_id'],
+                                            severity=v['severity']).first()
+                if assess:
+                    v['assess'] = dict(action='Update', path='/assess/update')
+                else:
+                    v['assess'] = dict(action='Create', path='/assess/create')
+                a_vlist.append(v)
+            a_report['vlist'] = a_vlist
+            a_report_info.append(a_report)
+        report_info = dict(info=a_report_info)
 
         if cve == '':
             results = sum(1 for x in report_info['info'] if len(x['vlist']) > 0)

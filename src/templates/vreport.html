@@ -162,6 +162,7 @@
                                 <th>Package</th>
                                 <th>CVE ID</th>
                                 <th>Severity Level</th>
+                                <th>Assessment</th>
                             </tr>
                             {% for report in report_info.info %}
                                 {% if selected.fixed %}
@@ -182,8 +183,10 @@
                                             <td>
                                                 {% for v in report.vlist %}
                                                     {{ v.severity }} <br>
-
                                                 {% endfor %}
+                                            </td>
+                                            <td>
+                                                C
                                             </td>
                                         </tr>
                                     {% endif %}
@@ -206,6 +209,11 @@
                                                 {{ v.severity }} <br>
 
                                             {% endfor %}
+                                        </td>
+                                        <td>
+                                        {% for v in report.vlist %}
+                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}">{{ v.assess['action'] }}</a> <br>
+                                        {% endfor %}
                                         </td>
                                     </tr>
                                 {% endif %}

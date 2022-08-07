@@ -30,7 +30,7 @@
                                 <td>{{ loop.index }}</td>
                                 <td>{{ assess.image }}</td>
                                 <td>{{ assess.package }}</td>
-                                <td>{{ assess.cve_id }}</td>
+                                <td><a href="{{ assess.cve_link }}" target="_blank">{{ assess.cve_id }}</a></td>
                                 <td>{{ assess.severity }}</td>
                                 <td>{{ assess.content }}</td>
                                 <td>{{ assess.author }}</td>
