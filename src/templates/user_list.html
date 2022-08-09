@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Clear Report Cache</title>
+    <title>Users</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +23,7 @@
                     </a>
                     <div class="dropdown-menu" aria-labelledby="navbarDropdownR">
                       <a class="dropdown-item" href="/">Search</a>
+                      <a class="dropdown-item" href="/clearcache">Clear Cache</a>
                       <a class="dropdown-item" href="/containers">Running Images</a>
                     </div>
                   </li>
@@ -34,7 +35,6 @@
                       Users
                     </a>
                     <div class="dropdown-menu" aria-labelledby="navbarDropdownU">
-                      <a class="dropdown-item" href="/user">List Users</a>
                       <a class="dropdown-item" href="/user/create">Create Users</a>
                     </div>
                   </li>
@@ -42,15 +42,28 @@
             </div>
         </nav>
         <!-- end navbar -->
-        <h1>Clear Report Cache</h1>
-        <br>
-        {% if report_info.info %}
-
-        <p>{{ report_info.info }}</p>
-        <p>Cache cleared</p>
-
+        <h1>Users</h1>
+        {% if users %}
+        <table class="table table-bordered table-striped">
+            <tr>
+                <th>n</th>
+                <th>Email</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Action</th>
+            </tr>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.first_name }}</td>
+                        <td>{{ user.last_name }}</td>
+                        <td><a href="/user/delete?user_id={{ user._id['$oid'] }}" >Delete</a></td>
+                    </tr>
+                {% endfor %}
+        </table>
         {% else %}
-            <span>no result: {{ report_info.info }}</span>
+            <div>no users found</div>
         {% endif %}
     </div>
     <script src="/static/scripts/jquery-3.5.1.slim.min.js"></script>

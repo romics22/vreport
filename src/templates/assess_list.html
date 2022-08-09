@@ -9,6 +9,40 @@
 </head>
 <body>
     <div class="container">
+        <!-- begin navbar  https://getbootstrap.com/docs/4.5/components/navbar/ -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+            <a class="navbar-brand" href="/">VReport</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav mr-auto">
+                  <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownR" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                      Reports
+                    </a>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdownR">
+                      <a class="dropdown-item" href="/">Search</a>
+                      <a class="dropdown-item" href="/clearcache">Clear Cache</a>
+                      <a class="dropdown-item" href="/containers">Running Images</a>
+                    </div>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="/assess">Assessments</a>
+                  </li>
+                  <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownU" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                      Users
+                    </a>
+                    <div class="dropdown-menu" aria-labelledby="navbarDropdownU">
+                      <a class="dropdown-item" href="/user">List Users</a>
+                      <a class="dropdown-item" href="/user/create">Create Users</a>
+                    </div>
+                  </li>
+                </ul>
+            </div>
+        </nav>
+        <!-- end navbar -->
         <h1>Assessments</h1>
         <br>
 
@@ -33,12 +67,14 @@
                                 <td><a href="{{ assess.cve_link }}" target="_blank">{{ assess.cve_id }}</a></td>
                                 <td>{{ assess.severity }}</td>
                                 <td>{{ assess.content }}</td>
-                                <td>{{ assess.author }}</td>
+                                <td>{{ users.objects(id=assess.author['$oid']).first().email}}</td>
                                 <td><a href="/assess/delete?assess_id={{ assess._id['$oid'] }}" >Delete</a></td>
                             </tr>
                         {% endfor %}
                 </table>
         {% endif %}
     </div>
+    <script src="/static/scripts/jquery-3.5.1.slim.min.js"></script>
+    <script src="/static/scripts/bootstrap.bundle.min.js"></script>
 </body>
 </html>

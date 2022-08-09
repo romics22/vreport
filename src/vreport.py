@@ -100,9 +100,10 @@ VERSION = '2.2.0'
 def user_query():
     users = User.objects
     if not users:
-        return jsonify({'error': 'data not found'})
+        users = None
     else:
-        return jsonify(users.to_json())
+        users = json.loads(users.to_json())
+    return render_template('user_list.html', users=users)
 
 
 @app.route('/user/create', methods=['GET', 'POST'])
@@ -149,7 +150,7 @@ def assess_query():
         return jsonify({'error': 'data not found'})
     else:
         assessments = json.loads(assess.to_json())
-        return render_template('assess_list.html', assessments=assessments)
+        return render_template('assess_list.html', assessments=assessments, users=User)
 
 
 @app.route('/assess/create', methods=['GET', 'POST'])
@@ -188,6 +189,7 @@ def assess_create():
 @app.route('/assess/update', methods=['GET', 'POST'])
 def assess_update():
     form = PostForm(request.form)
+    # get assessment object from request.args
     assess = Assessment.objects(image=request.args.get('image'),
                                 package=request.args.get('package'),
                                 cve_id=request.args.get('cve_id'),
@@ -195,9 +197,11 @@ def assess_update():
     if not assess:
         return jsonify({'error': 'data not found'})
     else:
+        # set form fields to values of assessment fields
         for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
             setattr(form, field, getattr(assess, field, ''))
-
+        # str is not available in template so convert author id here to string
+        setattr(form, 'author', str(assess.author.id))
         for field in ['text', 'category']:
             setattr(form, field, getattr(assess.content, field, ''))
 
@@ -209,7 +213,8 @@ def assess_update():
         if request.method == 'POST':  # and form.validate():
             assess.content.text = request.form['text']
             assess.content.category = request.form['category']
-            assess.save()  # TODO update of author
+            assess.author = User.objects(id=request.form['author']).first().id
+            assess.save()
             return redirect(url_for('assess_query'))
         return render_template('assess_update.html', form=form, users=users)
 
@@ -318,30 +323,31 @@ def reports():
                     report['images'][:] = image_list
                     report['packages'][:] = package_list
 
-        # add Assessment information
-        a_report_info = []
-        for item in report_info['info']:
-            a_report = {}
-            image = item['image']
-            a_report['image'] = image
-            a_vlist = []
-            for v in item['vlist']:
-                assess = Assessment.objects(image=image,
-                                            package=v['package'],
-                                            cve_id=v['v_id'],
-                                            severity=v['severity']).first()
-                if assess:
-                    v['assess'] = dict(action='Update', path='/assess/update')
-                else:
-                    v['assess'] = dict(action='Create', path='/assess/create')
-                a_vlist.append(v)
-            a_report['vlist'] = a_vlist
-            a_report_info.append(a_report)
-        report_info = dict(info=a_report_info)
-
         if cve == '':
+            # add Assessment information
+            a_report_info = []
+            for item in report_info['info']:
+                a_report = {}
+                image = item['image']
+                a_report['image'] = image
+                a_vlist = []
+                for v in item['vlist']:
+                    assess = Assessment.objects(image=image,
+                                                package=v['package'],
+                                                cve_id=v['v_id'],
+                                                severity=v['severity']).first()
+                    if assess:
+                        v['assess'] = dict(action='Update', path='/assess/update')
+                    else:
+                        v['assess'] = dict(action='Create', path='/assess/create')
+                    a_vlist.append(v)
+                a_report['vlist'] = a_vlist
+                a_report_info.append(a_report)
+            report_info = dict(info=a_report_info)
+            # count results
             results = sum(1 for x in report_info['info'] if len(x['vlist']) > 0)
         else:
+            log.info('rmi report info: %s' % report_info)
             results = len(report_info['info'])
     else:
         report_info = dict(info={})
