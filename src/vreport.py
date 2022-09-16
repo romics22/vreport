@@ -1,27 +1,36 @@
 from email.message import EmailMessage
 from itertools import filterfalse
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_mongoengine import MongoEngine
 from flask_mongoengine.wtf import model_form
-from wtforms import Form, validators, StringField, BooleanField
+from flask_login import LoginManager, login_user, logout_user, login_required
+from werkzeug.security import generate_password_hash, check_password_hash
+from wtforms import Form, validators, StringField, BooleanField, PasswordField
 from extlib import harboradapter
 from extlib import promadapter
 from waitress import serve
+import mongoengine.errors
 import json
 import smtplib
 from datetime import datetime
-import pytz
 import sys
 import os
 import logging
 
 log = logging.getLogger(__file__)
 
-# App config.
+# App configuration
 DEBUG = False
 app = Flask(__name__)
 app.config.from_object(__name__)
 app.config['SECRET_KEY'] = '7d441f27d441f27567d441f2b6176a'
+# login manager
+login_manager = LoginManager()
+login_manager.login_view = "user_login"
+login_manager.login_message = u"Please log in to access this page."
+login_manager.login_message_category = "info"
+login_manager.init_app(app)
+# database
 app.config['MONGODB_SETTINGS'] = {
     'db': 'vreport',
     'host': 'localhost',
@@ -32,14 +41,44 @@ db.init_app(app)
 
 
 class User(db.Document):
-    email = db.StringField(required=True)
-    first_name = db.StringField(max_length=50)
-    last_name = db.StringField(max_length=50)
+    active = db.BooleanField(default=True)
+    # User authentication information
+    username = db.StringField(default='')
+    password = db.StringField(required=True)
+    # User information
+    email = db.StringField(required=True, max_length=30)
+    first_name = db.StringField(required=True, default='')
+    last_name = db.StringField(required=True, default='')
+    # Relationships
+    roles = db.ListField(db.StringField(), default=[])
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return self.active
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    @property
+    def name(self):
+        return self.username
+
+    def get_id(self):
+        return str(self.id)
+
+    def get_hashpass(self):
+        return self.password
 
 
 class Content(db.EmbeddedDocument):
     text = db.StringField()
     category = db.StringField(max_length=3)
+    updated_at = db.DateTimeField(default=datetime.utcnow)
 
 
 class Assessment(db.Document):
@@ -52,7 +91,8 @@ class Assessment(db.Document):
     content = db.EmbeddedDocumentField(Content)
 
 
-PostForm = model_form(Assessment)
+AssesForm = model_form(Assessment)
+UserForm = model_form(User)
 
 
 class ReportsForm(Form):
@@ -62,6 +102,7 @@ class ReportsForm(Form):
     fixed = BooleanField('Fixed')
     gzrunning = BooleanField('Gzrunning')
     pzrunning = BooleanField('Pzrunning')
+    notassessed = BooleanField('Notassessed')
 
 
 class MailForm(Form):
@@ -93,10 +134,28 @@ prom = promadapter.PrometheusAdapter(credentials='',
                                      api_version='v1',
                                      protocol='http')
 
-VERSION = '2.2.0'
+VERSION = '2.3.0'
+
+# local timezone
+LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
+# file path to mailing configuration
+CONFIG_PATH_MAIL = '../config/mailing_data_json.txt'
+
+# url paths
+PATH_ASSESS_CREATE = '/assess/create'
+PATH_ASSESS_UPDATE = '/assess/update'
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        return User.objects(id=user_id).first()
+    except mongoengine.errors.ValidationError:
+        return None
 
 
 @app.route('/user', methods=['GET'])
+@login_required
 def user_query():
     users = User.objects
     if not users:
@@ -106,14 +165,51 @@ def user_query():
     return render_template('user_list.html', users=users)
 
 
+@app.route('/user/login', methods=['GET', 'POST'])
+def user_login():
+    form = UserForm(request.form)
+    if request.method == 'POST':  # and form.validate():
+        existing_user = User.objects(username=request.form['username']).first()
+        if existing_user:
+            if check_password_hash(existing_user.get_hashpass(), request.form['password']):
+                login_user(existing_user)
+                flash('Logged in successfully.')
+                next_page = request.args.get('next')
+                # TODO
+                # is_safe_url should check if the url is safe for redirects.
+                # See http://flask.pocoo.org/snippets/62/ for an example.
+                # if not is_safe_url(next):
+                #     return flask.abort(400)
+                #
+                return redirect(next_page or url_for('reports'))
+            else:
+                log.info('wrong password for user "%s"' % request.form['username'])
+        else:
+            log.info('user "%s" does not exist' % request.form['username'])
+    return render_template('user_login.html', form=form)
+
+
+@app.route("/user/logout")
+@login_required
+def user_logout():
+    logout_user()
+    return redirect('/')
+
+
 @app.route('/user/create', methods=['GET', 'POST'])
+@login_required
 def user_create():
-    form = PostForm(request.form)
-    if request.method == 'POST':
-        user = User(email=request.form['email'],
-                    first_name=request.form['first_name'],
-                    last_name=request.form['last_name'])
-        user.save()
+    form = UserForm(request.form)
+    if request.method == 'POST' and form.validate():
+        existing_user = User.objects(username=request.form['username']).first()
+        if existing_user is None:
+            hashpass = generate_password_hash(request.form['password'], method='sha256')
+            user = User(username=request.form['username'],
+                        password=hashpass,
+                        email=request.form['email'],
+                        first_name=request.form['first_name'],
+                        last_name=request.form['last_name'])
+            user.save()
         redirect('done')
     users = User.objects
     if not users:
@@ -124,6 +220,7 @@ def user_create():
 
 
 @app.route('/user/delete', methods=['GET'])
+@login_required
 def user_delete():
     # delete user by id, e.g ?user_id=62ea78573656869bd50f5a7d
     user_id = request.args.get('user_id')
@@ -150,12 +247,19 @@ def assess_query():
         return jsonify({'error': 'data not found'})
     else:
         assessments = json.loads(assess.to_json())
-        return render_template('assess_list.html', assessments=assessments, users=User)
+        assess_list = []
+        for a_dict in assessments:
+            ts = a_dict['content']['updated_at']['$date']
+            a_dict['content']['updated_at'] = datetime.fromtimestamp(ts/1000,
+                                                                     LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M:%S')
+            assess_list.append(a_dict)
+        return render_template('assess_list.html', assessments=assess_list, users=User)
 
 
-@app.route('/assess/create', methods=['GET', 'POST'])
+@app.route(PATH_ASSESS_CREATE, methods=['GET', 'POST'])
+@login_required
 def assess_create():
-    form = PostForm(request.form)
+    form = AssesForm(request.form)
     for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
         if request.args.get(field):
             setattr(form, field, request.args.get(field))
@@ -182,13 +286,14 @@ def assess_create():
                            author=author_id
                            )
         asses.save()
-        redirect('done')
+        return redirect(url_for('assess_query'))
     return render_template('assess_create.html', form=form, users=users)
 
 
-@app.route('/assess/update', methods=['GET', 'POST'])
+@app.route(PATH_ASSESS_UPDATE, methods=['GET', 'POST'])
+@login_required
 def assess_update():
-    form = PostForm(request.form)
+    form = AssesForm(request.form)
     # get assessment object from request.args
     assess = Assessment.objects(image=request.args.get('image'),
                                 package=request.args.get('package'),
@@ -200,8 +305,9 @@ def assess_update():
         # set form fields to values of assessment fields
         for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
             setattr(form, field, getattr(assess, field, ''))
-        # str is not available in template so convert author id here to string
-        setattr(form, 'author', str(assess.author.id))
+        if assess.author:
+            # str is not available in template so convert author id here to string
+            setattr(form, 'author', str(assess.author.id))
         for field in ['text', 'category']:
             setattr(form, field, getattr(assess.content, field, ''))
 
@@ -213,6 +319,7 @@ def assess_update():
         if request.method == 'POST':  # and form.validate():
             assess.content.text = request.form['text']
             assess.content.category = request.form['category']
+            assess.content.updated_at = datetime.utcnow
             assess.author = User.objects(id=request.form['author']).first().id
             assess.save()
             return redirect(url_for('assess_query'))
@@ -220,6 +327,7 @@ def assess_update():
 
 
 @app.route('/assess/delete', methods=['GET'])
+@login_required
 def assess_delete():
     # delete assessment by id, e.g ?assess_id=62ea78573656869bd50f5a7d
     assess_id = request.args.get('assess_id')
@@ -261,6 +369,11 @@ def reports():
             pzrunning_check = 'checked'
         else:
             pzrunning_check = ''
+        # preserve state of checkbox 'notassessed'
+        if 'notassessed' in request.form:
+            notassessed_check = 'checked'
+        else:
+            notassessed_check = ''
 
         # get vulnerability report from harbor
         report_info = harbor.get_harbor_info(info_type='scan',
@@ -337,17 +450,45 @@ def reports():
                                                 cve_id=v['v_id'],
                                                 severity=v['severity']).first()
                     if assess:
-                        v['assess'] = dict(action='Update', path='/assess/update')
+                        v['assess'] = dict(action='Update', path=PATH_ASSESS_UPDATE)
                     else:
-                        v['assess'] = dict(action='Create', path='/assess/create')
-                    a_vlist.append(v)
+                        v['assess'] = dict(action='Create', path=PATH_ASSESS_CREATE)
+                    if assess and notassessed_check:
+                        pass  # filter for not assessed vulnerabilities
+                    else:
+                        a_vlist.append(v)
                 a_report['vlist'] = a_vlist
                 a_report_info.append(a_report)
             report_info = dict(info=a_report_info)
             # count results
             results = sum(1 for x in report_info['info'] if len(x['vlist']) > 0)
         else:
-            log.info('rmi report info: %s' % report_info)
+            # add Assessment information
+            a_report_info = []
+            for item in report_info['info']:
+                # list of paths with parameters to create or update an assessment
+                assess_list = []
+                for i, image in enumerate(item['images']):
+                    assess = Assessment.objects(image=image,
+                                                package=item['packages'][i],
+                                                cve_id=item['cve_id'],
+                                                severity=item['severity']).first()
+                    param = '?image=%s&package=%s&cve_id=%s&cve_link=%s&severity=%s' % (image,
+                                                                                        item['packages'][i],
+                                                                                        item['cve_id'],
+                                                                                        item['links'][0],
+                                                                                        item['severity'])
+                    # TODO filter for notassessed
+                    if assess:
+                        assess_list.append(dict(path='%s%s' % (PATH_ASSESS_UPDATE, param),
+                                                action='Update'))
+                    else:
+                        assess_list.append(dict(path='%s%s' % (PATH_ASSESS_CREATE, param),
+                                                action='Create'))
+                item['assess'] = assess_list
+                a_report_info.append(item)
+            report_info = dict(info=a_report_info)
+            # count results
             results = len(report_info['info'])
     else:
         report_info = dict(info={})
@@ -358,6 +499,7 @@ def reports():
         fixed_check = ''
         gzrunning_check = ''
         pzrunning_check = ''
+        notassessed_check = ''
 
     return render_template('vreport.html', form=form, report_info=report_info, cve=cve, project_info=project_info,
                            version=VERSION, results=results,
@@ -365,7 +507,8 @@ def reports():
                                          severity=severity,
                                          fixed=fixed_check,
                                          gzrunning=gzrunning_check,
-                                         pzrunning=pzrunning_check))
+                                         pzrunning=pzrunning_check,
+                                         notassessed=notassessed_check))
 
 
 @app.route("/test", methods=['GET', 'POST'])
@@ -390,35 +533,9 @@ def clear_cache():
     return render_template('clearcache.html', report_info=report_info)
 
 
-@app.route("/mailing", methods=['GET', 'POST'])
-def mailing_form():
-    form = MailForm(request.form)
-    global recipient
-    global data
-    global pw
-    global sender
-    global server
-    global port
-    global to
-
-    with open('config/mailing_data_json.txt') as mailing_file:
-        data = json.load(mailing_file)
-        pw = data['pw']
-        sender = data['sender']
-        server = data['server']
-        port = data['port']
-
-    if request.method == 'POST':
-        recipient = request.form['recipient']
-        to = recipient
-        mail_message()
-
-    return render_template('mailing.html', form=form, data=data)
-
-
 @app.route("/reportmail", methods=['GET'])
 def report_mail():
-    with open('config/mailing_data_json.txt') as mailing_file:
+    with open(CONFIG_PATH_MAIL) as mailing_file:
         data = json.load(mailing_file)
     recipient = data['recipient']
     pw = data['pw']
@@ -432,9 +549,12 @@ def report_mail():
 
 
 def mailing(sender, server, to, pw, port, vsum, isum):
-    link = 'https://%s' % os.environ['VIRTUAL_HOST']
+    try:
+        link = 'https://%s' % os.environ['VIRTUAL_HOST']
+    except KeyError:
+        link = '* sorry, no link available *'
     subject = "Vreport"
-    date = datetime.now(pytz.timezone('Europe/Zurich')).strftime("Date/Time: %d.%m.%Y/%H:%M")
+    date = datetime.now(LOCAL_TIMEZONE).strftime("Date/Time: %d.%m.%Y/%H:%M")
 
     text = "Vulnerability Report for Docker Images" + "\n" + date + "\n" + "Critical Vulnerabilities: "\
            + str(vsum) + "\n" + "Affected images: " + str(isum) + "\n" + "Get more Information at " + link
@@ -448,13 +568,10 @@ def mailing(sender, server, to, pw, port, vsum, isum):
     # Send the mail
     server = smtplib.SMTP(server, port)
     server.starttls()
-
     if pw:
         server.login(sender, pw)
-
     server.send_message(msg)
     server.quit()
-    # return
 
 
 def mail_message(sender, server, to, pw, port):

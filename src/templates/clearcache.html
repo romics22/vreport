@@ -1,47 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Clear Report Cache</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <div class="container">
-        <!-- begin navbar  https://getbootstrap.com/docs/4.5/components/navbar/ -->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <a class="navbar-brand" href="/">VReport</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav mr-auto">
-                  <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownR" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                      Reports
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="navbarDropdownR">
-                      <a class="dropdown-item" href="/">Search</a>
-                      <a class="dropdown-item" href="/containers">Running Images</a>
-                    </div>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link" href="/assess">Assessments</a>
-                  </li>
-                  <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownU" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                      Users
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="navbarDropdownU">
-                      <a class="dropdown-item" href="/user">List Users</a>
-                      <a class="dropdown-item" href="/user/create">Create Users</a>
-                    </div>
-                  </li>
-                </ul>
-            </div>
-        </nav>
-        <!-- end navbar -->
+{% extends 'base.html' %}
+{% block html_title %}Clear Report Cache{% endblock %}
+{% block content %}
         <h1>Clear Report Cache</h1>
         <br>
         {% if report_info.info %}
@@ -52,8 +11,4 @@
         {% else %}
             <span>no result: {{ report_info.info }}</span>
         {% endif %}
-    </div>
-    <script src="/static/scripts/jquery-3.5.1.slim.min.js"></script>
-    <script src="/static/scripts/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

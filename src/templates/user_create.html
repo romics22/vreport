@@ -1,66 +1,37 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Users</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <link rel="stylesheet" href="{{ url_for('static',filename='styles/bootstrap.min.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <div class="container">
-        <!-- begin navbar  https://getbootstrap.com/docs/4.5/components/navbar/ -->
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
-            <a class="navbar-brand" href="/">VReport</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav mr-auto">
-                  <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownR" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                      Reports
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="navbarDropdownR">
-                      <a class="dropdown-item" href="/">Search</a>
-                      <a class="dropdown-item" href="/clearcache">Clear Cache</a>
-                      <a class="dropdown-item" href="/containers">Running Images</a>
-                    </div>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link" href="/assess">Assessments</a>
-                  </li>
-                  <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownU" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                      Users
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="navbarDropdownU">
-                      <a class="dropdown-item" href="/user">List Users</a>
-                    </div>
-                  </li>
-                </ul>
-            </div>
-        </nav>
-        <!-- end navbar -->
+{% extends 'base.html' %}
+{% block html_title %}Create User{% endblock %}
+{% block content %}
         <h1>Create User</h1>
         <form action="" method="post" role="form">
             {{ form.csrf_token }}
             <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="username">Username:</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="username" name="username">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label" for="password">Password:</label>
+                <div class="col-sm-10">
+                    <input type="password" class="form-control" id="password" name="password">
+                </div>
+            </div>
+            <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="email">Email:</label>
                 <div class="col-sm-10">
-                    <input type="text" class="form-control" id="email" name="email" value="{{ email }}" placeholder="first.last@domain">
+                    <input type="text" class="form-control" id="email" name="email">
                 </div>
             </div>
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="first_name">First Name:</label>
                 <div class="col-sm-10">
-                    <input type="text" class="form-control" id="first_name" name="first_name" value="{{ first_name }}" placeholder="">
+                    <input type="text" class="form-control" id="first_name" name="first_name">
                 </div>
             </div>
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="last_name">Last Name:</label>
                 <div class="col-sm-10">
-                    <input type="text" class="form-control" id="last_name" name="last_name" value="{{ last_name }}" placeholder="">
+                    <input type="text" class="form-control" id="last_name" name="last_name">
                 </div>
             </div>
             <div class="small">&nbsp;</div>
@@ -90,8 +61,4 @@
                         {% endfor %}
                 </table>
         {% endif %}
-    </div>
-    <script src="/static/scripts/jquery-3.5.1.slim.min.js"></script>
-    <script src="/static/scripts/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+% endblock %}
