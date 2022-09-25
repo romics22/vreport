@@ -109,49 +109,47 @@
                         <!--{% set found = found + 1 %}-->
                         <table class="table table-bordered table-striped">
                             <tr>
-                                <th width="150px">CVE ID</th>
-                                <th width="150px">Severity Level</th>
-                                <th >Images</th>
-                                <th >Packages</th>
-                                <th >Assessment</th>
+                                <th>CVE ID</th>
+                                <th>Severity Level</th>
+                                <th>Images</th>
+                                <th>Packages</th>
+                                <th>Assessment</th>
                             </tr>
                             {% for report in report_info.info %}
                                 <tr>
-                                    <td>
+                                    <td class="text-nowrap">
                                         {{ report.cve_id }}
                                     </td>
-                                    <td>
-                                        {{ report.severity }}
+                                    <td class="text-nowrap">
+                                        {% for i in report.severity %}
+                                            {{ i }} <br>
+                                        {% endfor %}
                                     </td>
-                                     <td VALIGN="TOP" >
+                                     <td class="text-nowrap" VALIGN="TOP" >
                                         {% for i in report.images %}
                                             {{ i }} <br>
                                         {% endfor %}
                                     </td>
-                                     <td VALIGN="TOP" >
+                                     <td class="text-nowrap" VALIGN="TOP" >
                                         {% for p in report.packages %}
                                             {{ p }} <br>
                                         {% endfor %}
                                     </td>
-                                    <td VALIGN="TOP" >
+                                    <td class="text-nowrap" VALIGN="TOP" >
                                         {% for a in report.assess %}
                                             <a href="{{ a.path }}" {% if a.action == 'Update' %}class="badge badge-success"{% elif a.action == 'Create' %}class="badge badge-light"{% endif %}  target="_blank">{{ a.action }}</a> <br>
                                         {% endfor %}
                                     </td>
-
                                 </tr>
                             {% endfor %}
-
                         </table>
                     {% endif %}
-
                 {% endfor %}
                 <!--{% if found == 0 %}
                         <div class="alert alert-danger" role="alert">
                             CVE-ID {{ cve }} ist nicht vorhanden.
                         </div>
                 {% endif %}-->
-
             {% else %}
                     <table class="table table-bordered table-striped">
                             <tr>
@@ -168,22 +166,22 @@
                                         <tr>
                                             <td>{{ loop.index }}</td>
                                             <td VALIGN="TOP" >{{ report.image }}</td>
-                                            <td>
+                                            <td class="text-nowrap">
                                             {% for v in report.vlist %}
                                                 {{ v.package }} <br>
                                             {% endfor %}
                                             </td>
-                                            <td>
+                                            <td class="text-nowrap">
                                             {% for v in report.vlist %}
                                                <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> {{ v.fixed }} <br>
                                             {% endfor %}
                                             </td>
-                                            <td>
+                                            <td class="text-nowrap">
                                                 {% for v in report.vlist %}
                                                     {{ v.severity }} <br>
                                                 {% endfor %}
                                             </td>
-                                            <td>
+                                            <td class="text-nowrap">
                                                 {% for v in report.vlist %}
                                                     <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} target="_blank">{{ v.assess['action'] }}</a> <br>
                                                 {% endfor %}
@@ -194,32 +192,29 @@
                                     <tr>
                                         <td>{{ loop.index }}</td>
                                         <td VALIGN="TOP" >{{ report.image }}</td>
-                                        <td>
+                                        <td class="text-nowrap">
                                             {% for v in report.vlist %}
                                                 {{ v.package }} <br>
                                             {% endfor %}
                                         </td>
-                                        <td>
+                                        <td class="text-nowrap">
                                         {% for v in report.vlist %}
                                            <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> <br>
                                         {% endfor %}
                                         </td>
-                                        <td>
+                                        <td class="text-nowrap">
                                             {% for v in report.vlist %}
                                                 {{ v.severity }} <br>
-
                                             {% endfor %}
                                         </td>
-                                        <td>
+                                        <td class="text-nowrap">
                                         {% for v in report.vlist %}
                                             <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} target="_blank">{{ v.assess['action'] }}</a> <br>
                                         {% endfor %}
                                         </td>
                                     </tr>
                                 {% endif %}
-
                             {% endfor %}
-
                         </table>
             {% endif %}
             {% else %}

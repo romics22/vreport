@@ -272,7 +272,7 @@ class HarborAdapter(object):
         # init scan_list
         scan_list = []
         # init cve_report that is used when a cve_id is provided
-        cve_report = {'cve_id': '', 'severity': '', 'fixed': '', 'links': '',
+        cve_report = {'cve_id': '', 'severity': [], 'fixed': '', 'links': '',
                       'found': 0, 'images': [], 'packages': []}
         # get information about projects
         project_info = self.get_harbor_projects(p_id=project_id)
@@ -298,7 +298,7 @@ class HarborAdapter(object):
                             if cve_id:
                                 for item in custom_report:
                                     cve_report['cve_id'] = cve_id
-                                    cve_report['severity'] = item['severity']
+                                    cve_report['severity'].append(item['severity'])
                                     cve_report['fixed'] = item['fixed']
                                     cve_report['links'] = item['links']
                                     cve_report['images'].append(item['image'])

@@ -525,12 +525,12 @@ def reports():
                     assess = Assessment.objects(image=image,
                                                 package=item['packages'][i],
                                                 cve_id=item['cve_id'],
-                                                severity=item['severity']).first()
+                                                severity=item['severity'][i]).first()
                     param = '?image=%s&package=%s&cve_id=%s&cve_link=%s&severity=%s' % (image,
                                                                                         item['packages'][i],
                                                                                         item['cve_id'],
                                                                                         item['links'][0],
-                                                                                        item['severity'])
+                                                                                        item['severity'][i])
                     if assess:
                         assess_indices.append(i)
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_UPDATE, param),
@@ -544,6 +544,7 @@ def reports():
                     # remove image, package and asses information when assessment exists
                     assess_indices.reverse()
                     for index in assess_indices:
+                        del item['severity'][index]
                         del item['images'][index]
                         del item['packages'][index]
                         del item['assess'][index]

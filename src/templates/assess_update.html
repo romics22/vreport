@@ -7,28 +7,28 @@
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="image">Image:</label>
                 <div class="col-sm-10">
-                    <div>{{ form.image }}</div>
+                    <div class="form-control-plaintext">{{ form.image }}</div>
                     <input type="hidden" class="form-control" id="image" name="image" value="{{ form.image }}">
                 </div>
             </div>
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="package">Package:</label>
                 <div class="col-sm-10">
-                    <div>{{ form.package }}</div>
+                    <div class="form-control-plaintext">{{ form.package }}</div>
                     <input type="hidden" class="form-control" id="package" name="package" value="{{ form.package }}">
                 </div>
             </div>
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="cve_id">CVE ID:</label>
                 <div class="col-sm-10">
-                    <div><a href="{{ form.cve_link }}" target="_blank">{{ form.cve_id }}</a></div>
+                    <div class="form-control-plaintext"><a href="{{ form.cve_link }}" target="_blank">{{ form.cve_id }}</a></div>
                     <input type="hidden" class="form-control" id="cve_id" name="cve_id" value="{{ form.cve_id }}">
                 </div>
             </div>
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="severity">Severity Level:</label>
                 <div class="col-sm-10">
-                    <div>{{ form.severity }}</div>
+                    <div class="form-control-plaintext">{{ form.severity }}</div>
                     <input type="hidden" class="form-control" id="severity" name="severity" value="{{ form.severity }}">
                 </div>
             </div>
@@ -44,7 +44,7 @@
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="author">User:</label>
                 <div class="col-sm-10">
-                    <div>{{ current_user.name }}</div>
+                    <div class="form-control-plaintext">{{ current_user.name }}</div>
                     <input type="hidden" class="form-control" id="author" name="author" value="{{ current_user.get_id() }}">
                 </div>
             </div>
