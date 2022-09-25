@@ -251,12 +251,9 @@ def user_create_admin():
 @login_required
 def user_change_pw():
     form = UserForm(request.form)
-    log.info('rmi current user: %s' % current_user.name)
     if request.method == 'POST':
         existing_user = User.objects(username=current_user.name).first()
         if existing_user:
-            log.info('rmi password: %s' % request.form['new_password'])
-            log.info('rmi new_password: %s' % request.form['new_confirmed_password'])
             if request.form['new_password'] == request.form['new_confirmed_password']:
                 hashpass = generate_password_hash(request.form['new_password'], method='sha256')
                 existing_user.password = hashpass
@@ -520,6 +517,8 @@ def reports():
             a_report_info = []
             log.info('rmi report info %r' % report_info['info'])
             for item in report_info['info']:
+                # list of indices where an assessment exists for an image and package
+                assess_indices = []
                 # list of paths with parameters to create or update an assessment
                 assess_list = []
                 for i, image in enumerate(item['images']):
@@ -532,14 +531,22 @@ def reports():
                                                                                         item['cve_id'],
                                                                                         item['links'][0],
                                                                                         item['severity'])
-
                     if assess:
+                        assess_indices.append(i)
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_UPDATE, param),
                                                 action='Update'))
                     else:
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_CREATE, param),
                                                 action='Create'))
                 item['assess'] = assess_list
+                # filter for vulnerabilities that have no assessment
+                if notassessed_check:
+                    # remove image, package and asses information when assessment exists
+                    assess_indices.reverse()
+                    for index in assess_indices:
+                        del item['images'][index]
+                        del item['packages'][index]
+                        del item['assess'][index]
                 a_report_info.append(item)
             report_info = dict(info=a_report_info)
             # count results
