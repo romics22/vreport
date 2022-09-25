@@ -35,7 +35,11 @@
                       Users
                     </a>
                     <div class="dropdown-menu" aria-labelledby="navbarDropdownU">
+                        {% if current_user.name == 'admin' %}
                       <a class="dropdown-item" href="/user">List Users</a>
+                      <a class="dropdown-item" href="/user/create">Create User</a>
+                        {% endif %}
+                      <a class="dropdown-item" href="/user/change_pw">Change Password</a>
                     </div>
                   </li>
                 </ul>

@@ -3,7 +3,7 @@ from itertools import filterfalse
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_mongoengine import MongoEngine
 from flask_mongoengine.wtf import model_form
-from flask_login import LoginManager, login_user, logout_user, login_required
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from wtforms import Form, validators, StringField, BooleanField, PasswordField
 from extlib import harboradapter
@@ -122,6 +122,7 @@ if sys.argv[4] == 'none':
 else:
     arg_api = sys.argv[4]
 arg_prometheus = sys.argv[5]
+arg_admin_route = sys.argv[6]
 
 harbor = harboradapter.HarborAdapter(credentials=arg_credentials,
                                      cache_maxsize=arg_cache_maxsize,
@@ -210,6 +211,8 @@ def user_create():
                         first_name=request.form['first_name'],
                         last_name=request.form['last_name'])
             user.save()
+        else:
+            flash('User "%s" already exists, nothing updated' % request.form['username'])
         redirect('done')
     users = User.objects
     if not users:
@@ -217,6 +220,56 @@ def user_create():
     else:
         users = json.loads(users.to_json())
     return render_template('user_create.html', form=form, users=users)
+
+
+@app.route('/user/%s' % arg_admin_route, methods=['GET', 'POST'])
+def user_create_admin():
+    # create admin user with a secret url
+    form = UserForm(request.form)
+    if request.method == 'POST' and form.validate():
+        existing_user = User.objects(username='admin').first()
+        if existing_user is None:
+            hashpass = generate_password_hash(request.form['password'], method='sha256')
+            user = User(username='admin',
+                        password=hashpass,
+                        email=request.form['email'],
+                        first_name=request.form['first_name'],
+                        last_name=request.form['last_name'])
+            user.save()
+        else:
+            flash('User "%s" already exists, nothing updated' % request.form['username'])
+        redirect('done')
+    users = User.objects
+    if not users:
+        users = None
+    else:
+        users = json.loads(users.to_json())
+    return render_template('user_create_admin.html', form=form, users=users)
+
+
+@app.route('/user/change_pw', methods=['GET', 'POST'])
+@login_required
+def user_change_pw():
+    form = UserForm(request.form)
+    log.info('rmi current user: %s' % current_user.name)
+    if request.method == 'POST':
+        existing_user = User.objects(username=current_user.name).first()
+        if existing_user:
+            log.info('rmi password: %s' % request.form['new_password'])
+            log.info('rmi new_password: %s' % request.form['new_confirmed_password'])
+            if request.form['new_password'] == request.form['new_confirmed_password']:
+                hashpass = generate_password_hash(request.form['new_password'], method='sha256')
+                existing_user.password = hashpass
+                existing_user.save()
+                flash('Password for user "%s" successfully updated' % current_user.name)
+                return redirect(url_for('reports'))
+            else:
+                flash('New passwords do not match, nothing changed')
+        else:
+            # this should not happen
+            flash('User "%s" does not exist, nothing updated' % current_user.name)
+        redirect('done')
+    return render_template('user_change_pw.html', form=form)
 
 
 @app.route('/user/delete', methods=['GET'])
@@ -465,6 +518,7 @@ def reports():
         else:
             # add Assessment information
             a_report_info = []
+            log.info('rmi report info %r' % report_info['info'])
             for item in report_info['info']:
                 # list of paths with parameters to create or update an assessment
                 assess_list = []
@@ -478,7 +532,7 @@ def reports():
                                                                                         item['cve_id'],
                                                                                         item['links'][0],
                                                                                         item['severity'])
-                    # TODO filter for notassessed
+
                     if assess:
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_UPDATE, param),
                                                 action='Update'))
