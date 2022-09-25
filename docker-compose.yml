@@ -12,6 +12,7 @@ services:
       - CREDENTIALS=${CREDENTIALS}
       - REGISTRY=${REGISTRY}
       - API=${API}
+      - ADMIN_URL=${ADMIN_URL}
       - CACHE_MAXSIZE=100
     volumes:
       - ./config:/app/config:ro
