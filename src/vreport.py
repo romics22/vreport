@@ -515,7 +515,7 @@ def reports():
         else:
             # add Assessment information
             a_report_info = []
-            log.info('rmi report info %r' % report_info['info'])
+            filtered = 0
             for item in report_info['info']:
                 # list of indices where an assessment exists for an image and package
                 assess_indices = []
@@ -548,10 +548,13 @@ def reports():
                         del item['images'][index]
                         del item['packages'][index]
                         del item['assess'][index]
+                    filtered = len(assess_indices)
                 a_report_info.append(item)
             report_info = dict(info=a_report_info)
-            # count results
-            results = len(report_info['info'])
+            if report_info['info']:
+                results = report_info['info'][0]['found'] - filtered
+            else:
+                results = 0
     else:
         report_info = dict(info={})
         projects = 0
