@@ -2,23 +2,37 @@ version: '2'
 
 services:
   vreport:
-    image: harbor-aio.so.ch/aio/vreport:2.0.5
+    image: ${INTERNAL_REGISTRY}/aio/vreport:2.3.0
     container_name: vreport
     restart: always
-    expose:
-        - "5001"
+    ports:
+      - "5001:5002"
     environment:
-      - VIRTUAL_HOST=vreport.rootso.org
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
       - CREDENTIALS=${CREDENTIALS}
       - REGISTRY=${REGISTRY}
       - API=${API}
+      - PROMETHEUS=${PROMETHEUS}
       - ADMIN_URL=${ADMIN_URL}
       - CACHE_MAXSIZE=100
+      - DB_NAME=${DB_NAME}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
     volumes:
       - ./config:/app/config:ro
-    networks:
-      - frontendproxy_bridge-net
+#    networks:
+#      - frontendproxy_bridge-net
+  mongodb:
+    image: ${INTERNAL_REGISTRY}/bitnami/mongodb:6.0
+    expose:
+      - "27017"
+    volumes:
+      - 'vreport_t:/bitnami/mongodb'
 
-networks:
-  frontendproxy_bridge-net:
-    external: true
+volumes:
+  vreport_t:
+    driver: local
+
+# networks:
+#  frontendproxy_bridge-net:
+#    external: true

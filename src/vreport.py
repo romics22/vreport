@@ -30,11 +30,19 @@ login_manager.login_view = "user_login"
 login_manager.login_message = u"Please log in to access this page."
 login_manager.login_message_category = "info"
 login_manager.init_app(app)
-# database
+# database settings
+db_name = os.getenv('DB_NAME', 'vreport')
+db_host = os.getenv('DB_HOST', 'localhost')
+db_port = os.getenv('DB_PORT', 27017)
+try:
+    db_port = int(db_port)
+except ValueError as e:
+    log.error('environment variable DB_PORT must be integer: %s' % e)
+    sys.exit(0)
 app.config['MONGODB_SETTINGS'] = {
-    'db': 'vreport',
-    'host': 'localhost',
-    'port': 27017
+    'db': db_name,
+    'host': db_host,
+    'port': db_port
 }
 db = MongoEngine()
 db.init_app(app)
@@ -109,9 +117,9 @@ class MailForm(Form):
     recipient = StringField('Empfänger:', validators=[validators.DataRequired()])
 
 
-if len(sys.argv) < 6:
+if len(sys.argv) < 7:
     print('run with -e CREDENTIALS=secret -e CACHE_MAXSIZE=600 -e REGISTRY=harbor-aio.so.ch -e API="" '
-          '-e PROMETHEUS=dockprom.rootso.org')
+          '-e PROMETHEUS=dockprom.rootso.org -e ADMIN_URL=<string>')
     sys.exit(0)
 
 arg_credentials = sys.argv[1]
