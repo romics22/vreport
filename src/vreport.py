@@ -117,27 +117,34 @@ class MailForm(Form):
     recipient = StringField('Empfänger:', validators=[validators.DataRequired()])
 
 
-if len(sys.argv) < 7:
-    print('run with -e CREDENTIALS=secret -e CACHE_MAXSIZE=600 -e REGISTRY=harbor-aio.so.ch -e API="" '
-          '-e PROMETHEUS=dockprom.rootso.org -e ADMIN_URL=<string>')
-    sys.exit(0)
-
-arg_credentials = sys.argv[1]
-arg_cache_maxsize = sys.argv[2]
-arg_registry = sys.argv[3]
-if sys.argv[4] == 'none':
-    arg_api = ''
+# environment settings
+# user-name and password of registry user
+arg_credentials = os.getenv('CREDENTIALS')
+# size of cache for api requests
+arg_cache_maxsize = os.getenv('CACHE_MAXSIZE')
+# fqn of internal registry
+arg_registry = os.getenv('REGISTRY')
+# api version of internal registry
+arg_api = os.getenv('API', '')
+# option to skip ssl verification of api requests
+arg_verify_ssl = os.getenv('VERIFY_SSL')
+if arg_verify_ssl == 'False':
+    arg_verify_ssl = False
 else:
-    arg_api = sys.argv[4]
-arg_prometheus = sys.argv[5]
-arg_admin_route = sys.argv[6]
+    arg_verify_ssl = True
+# fqn of prometheus
+arg_prometheus = os.getenv('PROMETHEUS')
+# secret url to initialise the admin user
+arg_admin_route = os.getenv('ADMIN_URL')
 
+# connect to internal registry
 harbor = harboradapter.HarborAdapter(credentials=arg_credentials,
                                      cache_maxsize=arg_cache_maxsize,
                                      registry=arg_registry,
                                      api_version=arg_api,
-                                     stage_dev=False)
-
+                                     stage_dev=False,
+                                     verify_ssl=arg_verify_ssl)
+# connect to prometheus
 prom = promadapter.PrometheusAdapter(credentials='',
                                      prometheus=arg_prometheus,
                                      api_version='v1',

@@ -45,6 +45,7 @@ class HarborAdapter(object):
                  registry,
                  api_version='',
                  protocol='https',
+                 verify_ssl=True,
                  stage_dev=False,
                  log_level=logging.INFO):
         # TODO: find solution to use cache_maxsize in __api_call
@@ -57,8 +58,7 @@ class HarborAdapter(object):
         configuration = swagger_client.Configuration()
         configuration.username = cred_dict['username']
         configuration.password = cred_dict['password']
-        # TODO remove next line in production
-        configuration.verify_ssl = False
+        configuration.verify_ssl = verify_ssl
         configuration.host = '%s://%s/api%s' % (protocol, registry, api_version)
 
         config = swagger_client.ApiClient(configuration)

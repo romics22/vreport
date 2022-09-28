@@ -11,4 +11,4 @@ RUN pip3 install git+https://github.com/romics22/harbor2-python-client
 
 COPY src/ .
 
-CMD python3 vreport.py ${CREDENTIALS} ${CACHE_MAXSIZE} ${REGISTRY} ${API} ${PROMETHEUS} ${ADMIN_URL}
+CMD python3 vreport.py
