@@ -9,7 +9,7 @@
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="severity">Severity Level:</label>
                 <div class="col-sm-10">
-                    <select id="severity" name="severity"  >
+                    <select id="severity" name="severity">
                         {% if selected.severity == "All Levels" %}
                             <option value="" selected>All Levels</option>
                         {% else%}
@@ -91,11 +91,7 @@
                 <label class="form-check-label" for="notassessed">not assessed</label>
             </div>
             <div class="small">&nbsp;</div>
-            <button type="submit" name="button"  class="btn btn-success">Search</button>
-            <!--<button class="btn btn-primary" type="button" disabled>
-              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              Loading...
-            </button>-->
+            <button type="submit" name="button" class="btn btn-success">Search</button>
         </form>
         <br>
         {% if report_info.info != {} %}
@@ -137,7 +133,7 @@
                                     </td>
                                     <td class="text-nowrap" VALIGN="TOP" >
                                         {% for a in report.assess %}
-                                            <a href="{{ a.path }}" {% if a.action == 'Update' %}class="badge badge-success"{% elif a.action == 'Create' %}class="badge badge-light"{% endif %}  target="_blank">{{ a.action }}</a> <br>
+                                            <a href="{{ a.path }}" {% if a.action == 'Update' %}class="badge badge-success"{% elif a.action == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ a.text }}" target="_blank">{{ a.action }}</a> <br>
                                         {% endfor %}
                                     </td>
                                 </tr>
@@ -145,11 +141,7 @@
                         </table>
                     {% endif %}
                 {% endfor %}
-                <!--{% if found == 0 %}
-                        <div class="alert alert-danger" role="alert">
-                            CVE-ID {{ cve }} ist nicht vorhanden.
-                        </div>
-                {% endif %}-->
+
             {% else %}
                     <table class="table table-bordered table-striped">
                             <tr>
@@ -183,7 +175,7 @@
                                             </td>
                                             <td class="text-nowrap">
                                                 {% for v in report.vlist %}
-                                                    <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} target="_blank">{{ v.assess['action'] }}</a> <br>
+                                                    <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}" target="_blank">{{ v.assess['action'] }}</a><br>
                                                 {% endfor %}
                                             </td>
                                         </tr>
@@ -209,7 +201,7 @@
                                         </td>
                                         <td class="text-nowrap">
                                         {% for v in report.vlist %}
-                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} target="_blank">{{ v.assess['action'] }}</a> <br>
+                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}" target="_blank">{{ v.assess['action'] }}</a> <br>
                                         {% endfor %}
                                         </td>
                                     </tr>

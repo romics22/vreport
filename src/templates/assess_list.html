@@ -3,20 +3,77 @@
 {% block content %}
         <h1>Assessments</h1>
         <br>
-        {% if assessments %}
-
-                <table class="table table-bordered table-striped">
-                    <tr>
-                        <th>n</th>
-                        <th>Image</th>
-                        <th>Package</th>
-                        <th>CVE ID</th>
-                        <th>Severity Level</th>
-                        <th>Content</th>
-                        <th>Updated at</th>
-                        <th>Author</th>
-                        <th>Action</th>
+            <form>
+                <table class="table table-bordered table-striped table table-sm">
+                    <thead>
+                        <tr>
+                            <th>n</th>
+                            <th>Image</th>
+                            <th>Package</th>
+                            <th>CVE ID</th>
+                            <th>Severity Level</th>
+                            <th>Content</th>
+                            <th>Updated at</th>
+                            <th>Author</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tr class="table-info">
+                        <td></td>
+                        <td>
+                            <input class="form-control form-control-sm" name="image" id="image" value="{{ filters.image }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="package" id="package" value="{{ filters.package }}">
+                        </td>
+                        <td>
+                            <input class="form-control form-control-sm" name="cve_id" id="cve_id" value="{{ filters.cve_id }}">
+                        </td>
+                        <td>
+                            <select class="form-control form-control-sm" name="severity" id="severity">
+                            {% if filters.severity == "All Levels" %}
+                                <option value="" selected>All Levels</option>
+                            {% else%}
+                                <option value="" >All Levels</option>
+                            {% endif%}
+                            {% if filters.severity == "Critical" %}
+                                <option value="Critical" selected>Critical</option>
+                            {% else%}
+                                <option value="Critical" >Critical</option>
+                            {% endif%}
+                            {% if filters.severity == "High" %}
+                                <option value="High" selected>High</option>
+                            {% else%}
+                                <option value="High" >High</option>
+                            {% endif%}
+                            {% if filters.severity == "Medium" %}
+                                <option value="Medium" selected>Medium</option>
+                            {% else%}
+                                <option value="Medium" >Medium</option>
+                            {% endif%}
+                            {% if filters.severity == "Low" %}
+                                <option value="Low" selected>Low</option>
+                            {% else%}
+                                <option value="Low" >Low</option>
+                            {% endif%}
+                            {% if filters.severity == "Negligible" %}
+                                <option value="Negligible" selected>Negligible</option>
+                            {% else%}
+                                <option value="Negligible" >Negligible</option>
+                            {% endif%}
+                            {% if filters.severity == "Unknown" %}
+                                <option value="Unknown" selected>Unknown</option>
+                            {% else%}
+                                <option value="Unknown" >Unknown</option>
+                            {% endif%}
+                            </select>
+                        </td>
+                        <td></td>
+                        <td></td>
+                        <td>Author</td>
+                        <td><button class="btn btn-primary btn-sm">Filter</button></td>
                     </tr>
+                    {% if assessments %}
                         {% for assess in assessments %}
                             <tr>
                                 <td>{{ loop.index }}</td>
@@ -30,6 +87,7 @@
                                 <td><a href="/assess/delete?assess_id={{ assess._id['$oid'] }}" class="badge badge-danger">Delete</a></td>
                             </tr>
                         {% endfor %}
+                    {% endif %}
                 </table>
-        {% endif %}
+            </form>
 {% endblock %}

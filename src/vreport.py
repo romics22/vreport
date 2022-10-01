@@ -303,22 +303,30 @@ def user_delete():
 
 @app.route('/assess', methods=['GET'])
 def assess_query():
-    if request.args.get('image'):
-        image = request.args.get('image')
-        assess = Assessment.objects(image=image).first()
+    # log.info('rmi args: %s' % list(request.args.keys()))
+    assess_q_list = []
+    filters = dict(image='', package='', cve_id='', severity='')
+    for key in list(request.args.keys()):
+        if request.args.get(key) and key in filters.keys():
+            assess_q_list.append('%s=request.args.get("%s")' % (key, key))
+            filters[key] = request.args.get(key)
+    if assess_q_list:
+        assess_q = ', '.join(assess_q_list)
+        assess_q = 'Assessment.objects(' + assess_q + ')'
+        assess = eval(assess_q)
     else:
         assess = Assessment.objects
+    assess_list = []
     if not assess:
-        return jsonify({'error': 'data not found'})
+        flash('No assessments available!')
     else:
         assessments = json.loads(assess.to_json())
-        assess_list = []
         for a_dict in assessments:
             ts = a_dict['content']['updated_at']['$date']
             a_dict['content']['updated_at'] = datetime.fromtimestamp(ts/1000,
                                                                      LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M:%S')
             assess_list.append(a_dict)
-        return render_template('assess_list.html', assessments=assess_list, users=User)
+    return render_template('assess_list.html', assessments=assess_list, users=User, filters=filters)
 
 
 @app.route(PATH_ASSESS_CREATE, methods=['GET', 'POST'])
@@ -494,12 +502,15 @@ def reports():
                 for report in report_info['info']:
                     image_list = []
                     package_list = []
+                    severity_list = []
                     for count, value in enumerate(report['images']):
                         if image_running(value, network):
                             image_list.append(value)
                             package_list.append(report['packages'][count])
+                            severity_list.append(report['severity'][count])
                     report['images'][:] = image_list
                     report['packages'][:] = package_list
+                    report['severity'][:] = severity_list
 
         if cve == '':
             # add Assessment information
@@ -515,9 +526,9 @@ def reports():
                                                 cve_id=v['v_id'],
                                                 severity=v['severity']).first()
                     if assess:
-                        v['assess'] = dict(action='Update', path=PATH_ASSESS_UPDATE)
+                        v['assess'] = dict(action='Update', path=PATH_ASSESS_UPDATE, text=assess.content.text)
                     else:
-                        v['assess'] = dict(action='Create', path=PATH_ASSESS_CREATE)
+                        v['assess'] = dict(action='Create', path=PATH_ASSESS_CREATE, text='')
                     if assess and notassessed_check:
                         pass  # filter for not assessed vulnerabilities
                     else:
@@ -549,10 +560,10 @@ def reports():
                     if assess:
                         assess_indices.append(i)
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_UPDATE, param),
-                                                action='Update'))
+                                                action='Update', text=assess.content.text))
                     else:
                         assess_list.append(dict(path='%s%s' % (PATH_ASSESS_CREATE, param),
-                                                action='Create'))
+                                                action='Create', text=''))
                 item['assess'] = assess_list
                 # filter for vulnerabilities that have no assessment
                 if notassessed_check:
