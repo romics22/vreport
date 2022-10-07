@@ -133,7 +133,7 @@
                                     </td>
                                     <td class="text-nowrap" VALIGN="TOP" >
                                         {% for a in report.assess %}
-                                            <a href="{{ a.path }}" {% if a.action == 'Update' %}class="badge badge-success"{% elif a.action == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ a.text }}" target="_blank">{{ a.action }}</a> <br>
+                                            <a href="{{ a.path }}" {% if a.action == 'Update' %}class="badge badge-success"{% elif a.action == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ a.text }}">{{ a.action }}</a> <br>
                                         {% endfor %}
                                     </td>
                                 </tr>
@@ -165,7 +165,7 @@
                                             </td>
                                             <td class="text-nowrap">
                                             {% for v in report.vlist %}
-                                               <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> {{ v.fixed }} <br>
+                                               <a href="{{ v.links[0] }}">{{ v.v_id }}</a> {{ v.fixed }} <br>
                                             {% endfor %}
                                             </td>
                                             <td class="text-nowrap">
@@ -175,7 +175,7 @@
                                             </td>
                                             <td class="text-nowrap">
                                                 {% for v in report.vlist %}
-                                                    <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}" target="_blank">{{ v.assess['action'] }}</a><br>
+                                                    <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}">{{ v.assess['action'] }}</a><br>
                                                 {% endfor %}
                                             </td>
                                         </tr>
@@ -191,7 +191,7 @@
                                         </td>
                                         <td class="text-nowrap">
                                         {% for v in report.vlist %}
-                                           <a href="{{ v.links[0] }}" target="_blank">{{ v.v_id }}</a> <br>
+                                           <a href="{{ v.links[0] }}">{{ v.v_id }}</a> <br>
                                         {% endfor %}
                                         </td>
                                         <td class="text-nowrap">
@@ -201,7 +201,7 @@
                                         </td>
                                         <td class="text-nowrap">
                                         {% for v in report.vlist %}
-                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}" target="_blank">{{ v.assess['action'] }}</a> <br>
+                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}">{{ v.assess['action'] }}</a> <br>
                                         {% endfor %}
                                         </td>
                                     </tr>

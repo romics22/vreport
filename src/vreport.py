@@ -1,6 +1,8 @@
 from email.message import EmailMessage
 from itertools import filterfalse
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+
+import flask
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
 from flask_mongoengine import MongoEngine
 from flask_mongoengine.wtf import model_form
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -174,12 +176,15 @@ def load_user(user_id):
 @app.route('/user', methods=['GET'])
 @login_required
 def user_query():
-    users = User.objects
-    if not users:
-        users = None
+    if current_user.name == 'admin':
+        users = User.objects
+        if not users:
+            users = None
+        else:
+            users = json.loads(users.to_json())
+        return render_template('user_list.html', users=users)
     else:
-        users = json.loads(users.to_json())
-    return render_template('user_list.html', users=users)
+        return render_template('403.html'), 403
 
 
 @app.route('/user/login', methods=['GET', 'POST'])
@@ -321,6 +326,9 @@ def assess_query():
                                                                      LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M:%S')
             assess_list.append(a_dict)
     filter_param = url_encode(filter_dict)
+    # set return_to if user is logged in
+    if '_user_id' in flask.session.keys():
+        flask.session['return_to'] = 'assess_query'
     return render_template('assess_list.html',
                            assessments=assess_list,
                            users=User,
@@ -358,7 +366,7 @@ def assess_create():
                            author=author_id
                            )
         asses.save()
-        return redirect(url_for('assess_query', **dict(request.args)))
+        return redirect(url_for('reports'))
     return render_template('assess_create.html', form=form, users=users)
 
 
@@ -401,7 +409,10 @@ def assess_update():
                 assess.content.updated_at = datetime.utcnow
                 assess.author = User.objects(id=request.form['author']).first().id
                 assess.save()
-                return redirect(url_for('assess_query', **dict(request.args)))
+                if flask.session.get('return_to') == 'reports':
+                    return redirect(url_for(flask.session.get('return_to')))
+                return_to = flask.session.get('return_to', 'assess_query')
+                return redirect(url_for(return_to, **dict(request.args)))
         return render_template('assess_update.html', form=form, users=users)
 
 
@@ -454,7 +465,19 @@ def reports():
         else:
             notassessed_check = ''
 
-        # get vulnerability report from harbor
+        # store query in session
+        if '_user_id' in flask.session.keys():
+            flask.session['severity'] = severity
+            flask.session['projects'] = projects
+            flask.session['cve'] = cve
+            flask.session['fixed_check'] = fixed_check
+            flask.session['gzrunning_check'] = gzrunning_check
+            flask.session['pzrunning_check'] = pzrunning_check
+            flask.session['notassessed_check'] = notassessed_check
+            # set return_to for navigation
+            flask.session['return_to'] = 'reports'
+
+            # get vulnerability report from harbor
         report_info = harbor.get_harbor_info(info_type='scan',
                                              project_id=projects,
                                              severity_level=severity,
@@ -589,14 +612,23 @@ def reports():
                 results = 0
     else:
         report_info = dict(info={})
-        projects = 0
         results = 0
-        severity = ''
-        cve = ''
-        fixed_check = ''
-        gzrunning_check = ''
-        pzrunning_check = ''
-        notassessed_check = ''
+        if '_user_id' in flask.session.keys():
+            projects = flask.session.get('projects', 0)
+            severity = flask.session.get('severity', '')
+            cve = flask.session.get('cve', '')
+            fixed_check = flask.session.get('fixed_check', '')
+            gzrunning_check = flask.session.get('gzrunning_check', '')
+            pzrunning_check = flask.session.get('pzrunning_check', '')
+            notassessed_check = flask.session.get('notassessed_check', '')
+        else:
+            projects = 0
+            severity = ''
+            cve = ''
+            fixed_check = ''
+            gzrunning_check = ''
+            pzrunning_check = ''
+            notassessed_check = ''
 
     return render_template('vreport.html', form=form, report_info=report_info, cve=cve, project_info=project_info,
                            version=VERSION, results=results,
@@ -644,6 +676,13 @@ def report_mail():
     text = 'Mail versendet!'
     return str(text)
 
+@app.errorhandler(403)
+def forbidden(error):
+    return render_template('403.html'), 403
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('404.html'), 404
 
 def mailing(sender, server, to, pw, port, vsum, isum):
     try:
