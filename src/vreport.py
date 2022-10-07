@@ -5,6 +5,7 @@ from flask_mongoengine import MongoEngine
 from flask_mongoengine.wtf import model_form
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.urls import url_encode
 from wtforms import Form, validators, StringField, BooleanField, PasswordField
 from extlib import harboradapter
 from extlib import promadapter
@@ -304,18 +305,11 @@ def user_delete():
 @app.route('/assess', methods=['GET'])
 def assess_query():
     # log.info('rmi args: %s' % list(request.args.keys()))
-    assess_q_list = []
-    filters = dict(image='', package='', cve_id='', severity='')
-    for key in list(request.args.keys()):
-        if request.args.get(key) and key in filters.keys():
-            assess_q_list.append('%s=request.args.get("%s")' % (key, key))
-            filters[key] = request.args.get(key)
-    if assess_q_list:
-        assess_q = ', '.join(assess_q_list)
-        assess_q = 'Assessment.objects(' + assess_q + ')'
-        assess = eval(assess_q)
-    else:
-        assess = Assessment.objects
+    valid_filters = ['image', 'package', 'cve_id', 'severity']
+    filter_dict = dict(request.args)
+    # remove empty values and not valid keys
+    filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
+    assess = Assessment.objects(**filter_dict)
     assess_list = []
     if not assess:
         flash('No assessments available!')
@@ -326,7 +320,12 @@ def assess_query():
             a_dict['content']['updated_at'] = datetime.fromtimestamp(ts/1000,
                                                                      LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M:%S')
             assess_list.append(a_dict)
-    return render_template('assess_list.html', assessments=assess_list, users=User, filters=filters)
+    filter_param = url_encode(filter_dict)
+    return render_template('assess_list.html',
+                           assessments=assess_list,
+                           users=User,
+                           filters=filter_dict,
+                           filter_param=filter_param)
 
 
 @app.route(PATH_ASSESS_CREATE, methods=['GET', 'POST'])
@@ -359,7 +358,7 @@ def assess_create():
                            author=author_id
                            )
         asses.save()
-        return redirect(url_for('assess_query'))
+        return redirect(url_for('assess_query', **dict(request.args)))
     return render_template('assess_create.html', form=form, users=users)
 
 
@@ -368,10 +367,13 @@ def assess_create():
 def assess_update():
     form = AssesForm(request.form)
     # get assessment object from request.args
-    assess = Assessment.objects(image=request.args.get('image'),
-                                package=request.args.get('package'),
-                                cve_id=request.args.get('cve_id'),
-                                severity=request.args.get('severity')).first()
+    if request.args.get('assess_id'):
+        assess = Assessment.objects(id=request.args.get('assess_id')).first()
+    else:
+        assess = Assessment.objects(image=request.args.get('image'),
+                                    package=request.args.get('package'),
+                                    cve_id=request.args.get('cve_id'),
+                                    severity=request.args.get('severity')).first()
     if not assess:
         return jsonify({'error': 'data not found'})
     else:
@@ -389,13 +391,17 @@ def assess_update():
             users = None
         else:
             users = json.loads(users.to_json())
-        if request.method == 'POST':  # and form.validate():
-            assess.content.text = request.form['text']
-            assess.content.category = request.form['category']
-            assess.content.updated_at = datetime.utcnow
-            assess.author = User.objects(id=request.form['author']).first().id
-            assess.save()
-            return redirect(url_for('assess_query'))
+        if request.method == 'POST':
+            if request.form.get('delete'):
+                assess.delete()
+                return redirect(url_for('assess_query'))
+            else:
+                assess.content.text = request.form['text']
+                assess.content.category = request.form['category']
+                assess.content.updated_at = datetime.utcnow
+                assess.author = User.objects(id=request.form['author']).first().id
+                assess.save()
+                return redirect(url_for('assess_query', **dict(request.args)))
         return render_template('assess_update.html', form=form, users=users)
 
 

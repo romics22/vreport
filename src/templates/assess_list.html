@@ -21,47 +21,47 @@
                     <tr class="table-info">
                         <td></td>
                         <td>
-                            <input class="form-control form-control-sm" name="image" id="image" value="{{ filters.image }}">
+                            <input class="form-control form-control-sm" name="image" id="image" value="{{ filters.get('image', '') }}">
                         </td>
                         <td>
-                            <input class="form-control form-control-sm" name="package" id="package" value="{{ filters.package }}">
+                            <input class="form-control form-control-sm" name="package" id="package" value="{{ filters.get('package', '') }}">
                         </td>
                         <td>
-                            <input class="form-control form-control-sm" name="cve_id" id="cve_id" value="{{ filters.cve_id }}">
+                            <input class="form-control form-control-sm" name="cve_id" id="cve_id" value="{{ filters.get('cve_id', '') }}">
                         </td>
                         <td>
                             <select class="form-control form-control-sm" name="severity" id="severity">
-                            {% if filters.severity == "All Levels" %}
+                            {% if filters.get('severity') == "All Levels" %}
                                 <option value="" selected>All Levels</option>
                             {% else%}
                                 <option value="" >All Levels</option>
                             {% endif%}
-                            {% if filters.severity == "Critical" %}
+                            {% if filters.get('severity') == "Critical" %}
                                 <option value="Critical" selected>Critical</option>
                             {% else%}
                                 <option value="Critical" >Critical</option>
                             {% endif%}
-                            {% if filters.severity == "High" %}
+                            {% if filters.get('severity') == "High" %}
                                 <option value="High" selected>High</option>
                             {% else%}
                                 <option value="High" >High</option>
                             {% endif%}
-                            {% if filters.severity == "Medium" %}
+                            {% if filters.get('severity') == "Medium" %}
                                 <option value="Medium" selected>Medium</option>
                             {% else%}
                                 <option value="Medium" >Medium</option>
                             {% endif%}
-                            {% if filters.severity == "Low" %}
+                            {% if filters.get('severity') == "Low" %}
                                 <option value="Low" selected>Low</option>
                             {% else%}
                                 <option value="Low" >Low</option>
                             {% endif%}
-                            {% if filters.severity == "Negligible" %}
+                            {% if filters.get('severity') == "Negligible" %}
                                 <option value="Negligible" selected>Negligible</option>
                             {% else%}
                                 <option value="Negligible" >Negligible</option>
                             {% endif%}
-                            {% if filters.severity == "Unknown" %}
+                            {% if filters.get('severity') == "Unknown" %}
                                 <option value="Unknown" selected>Unknown</option>
                             {% else%}
                                 <option value="Unknown" >Unknown</option>
@@ -84,7 +84,7 @@
                                 <td>{{ assess.content.text }}</td>
                                 <td>{{ assess.content.updated_at }}</td>
                                 <td>{% if assess.author %}{{ users.objects(id=assess.author['$oid']).first().first_name}} {{ users.objects(id=assess.author['$oid']).first().last_name}}{% endif %}</td>
-                                <td><a href="/assess/delete?assess_id={{ assess._id['$oid'] }}" class="badge badge-danger">Delete</a></td>
+                                <td><a href="/assess/update?assess_id={{ assess._id['$oid'] }}&{{ filter_param }}" class="badge badge-success">Update</a></td>
                             </tr>
                         {% endfor %}
                     {% endif %}
