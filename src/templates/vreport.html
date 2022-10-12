@@ -77,7 +77,7 @@
             <div class="form-group row">
                 <label class="col-sm-2 col-form-label" for="cve">CVE ID:</label>
                 <div class="col-sm-10">
-                    <input type="text" class="form-control" id="cve" name="cve" value="{{ cve }}" placeholder="CVE ID you are looking for?">
+                    <input type="text" class="form-control" id="cve" name="cve" value="{{ cve }}" placeholder="CVE ID you are looking for? (for 'All Levels' only)">
                 </div>
             </div>
             <h5>Filter for images</h5>
@@ -198,4 +198,20 @@
               {% endif %}
              {% endif %}
         {% endif %}
+{% endblock %}
+{% block add_scripts %}
+<script>
+/*
+disable severity selection when there is a value for cve,
+because search vor cve does not filter by severity
+*/
+var update_severity = function () {
+     $("#severity").prop("disabled", $('#cve').val());
+};
+
+update_severity();
+$("#cve").change(update_severity);
+
+
+</script>
 {% endblock %}

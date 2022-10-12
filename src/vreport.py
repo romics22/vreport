@@ -452,9 +452,9 @@ def reports():
     container_info = prom.get_running_containers()
     # handle information from html form
     if request.method == 'POST':
-        severity = request.form['severity']
-        projects = request.form['projects']
-        cve = request.form['cve']
+        severity = request.form.get('severity', '')
+        projects = request.form.get('projects', '')
+        cve = request.form['cve'].strip()
         # preserve state of checkbox 'fixed'
         if 'fixed' in request.form:
             fixed_check = 'checked'
