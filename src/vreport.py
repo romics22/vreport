@@ -603,11 +603,10 @@ def reports():
                         del item['images'][index]
                         del item['packages'][index]
                         del item['assess'][index]
-                    filtered = len(assess_indices)
                 a_report_info.append(item)
             report_info = dict(info=a_report_info)
             if report_info['info']:
-                results = report_info['info'][0]['found'] - filtered
+                results = len(report_info['info'][0]['images'])
             else:
                 results = 0
     else:

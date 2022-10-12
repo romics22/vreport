@@ -1,6 +1,13 @@
 {% extends 'base.html' %}
 {% block html_title %}Vulnerability Reports{% endblock %}
 {% block content %}
+{% set counter = {
+    'image': 0,
+    'vul': 0,
+    } %}
+{% macro increment(dct, key, inc=1)%}
+    {% if dct.update({key: dct[key] + inc}) %} {% endif %}
+{% endmacro %}
         <h1>Vulnerability Reports for Docker Images</h1>
         <p class="font-italic font-weight-light small">Version {{ version }}</p>
         <div class=small>&nbsp;</div>
@@ -153,45 +160,19 @@
                                 <th>Assessment</th>
                             </tr>
                             {% for report in report_info.info %}
-                                {% if selected.fixed %}
-                                    {% if report.vlist|length > 0 %}
-                                        <tr>
-                                            <td>{{ loop.index }}</td>
-                                            <td VALIGN="TOP" >{{ report.image }}</td>
-                                            <td class="text-nowrap">
-                                            {% for v in report.vlist %}
-                                                {{ v.package }} <br>
-                                            {% endfor %}
-                                            </td>
-                                            <td class="text-nowrap">
-                                            {% for v in report.vlist %}
-                                               <a href="{{ v.links[0] }}">{{ v.v_id }}</a> {{ v.fixed }} <br>
-                                            {% endfor %}
-                                            </td>
-                                            <td class="text-nowrap">
-                                                {% for v in report.vlist %}
-                                                    {{ v.severity }} <br>
-                                                {% endfor %}
-                                            </td>
-                                            <td class="text-nowrap">
-                                                {% for v in report.vlist %}
-                                                    <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}">{{ v.assess['action'] }}</a><br>
-                                                {% endfor %}
-                                            </td>
-                                        </tr>
-                                    {% endif %}
-                                {% else %}
+                                {% if report.vlist|length > 0 %}
+                                    {{ increment(counter, 'image') }}
                                     <tr>
-                                        <td>{{ loop.index }}</td>
+                                        <td>{{ counter.image }}</td>
                                         <td VALIGN="TOP" >{{ report.image }}</td>
                                         <td class="text-nowrap">
-                                            {% for v in report.vlist %}
-                                                {{ v.package }} <br>
-                                            {% endfor %}
+                                        {% for v in report.vlist %}
+                                            {{ v.package }} <br>
+                                        {% endfor %}
                                         </td>
                                         <td class="text-nowrap">
                                         {% for v in report.vlist %}
-                                           <a href="{{ v.links[0] }}">{{ v.v_id }}</a> <br>
+                                           <a href="{{ v.links[0] }}">{{ v.v_id }}</a>{% if selected.fixed %} {{ v.fixed }}{% endif %}<br>
                                         {% endfor %}
                                         </td>
                                         <td class="text-nowrap">
@@ -200,9 +181,9 @@
                                             {% endfor %}
                                         </td>
                                         <td class="text-nowrap">
-                                        {% for v in report.vlist %}
-                                            <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}">{{ v.assess['action'] }}</a> <br>
-                                        {% endfor %}
+                                            {% for v in report.vlist %}
+                                                <a href="{{ v.assess['path'] }}?image={{ report.image }}&package={{ v.package }}&cve_id={{ v.v_id }}&cve_link={{ v.links[0] }}&severity={{ v.severity }}" {% if v.assess['action'] == 'Update' %}class="badge badge-success"{% elif v.assess['action'] == 'Create' %}class="badge badge-light"{% endif %} data-toggle="tooltip" data-placement="top" title="{{ v.assess['text'] }}">{{ v.assess['action'] }}</a><br>
+                                            {% endfor %}
                                         </td>
                                     </tr>
                                 {% endif %}
