@@ -95,9 +95,9 @@ class Content(db.EmbeddedDocument):
 class Assessment(db.Document):
     author = db.ReferenceField(User, reverse_delete_rule=1)
     image = db.StringField(max_length=150)
-    package = db.StringField(max_length=30)
-    cve_id = db.StringField(max_length=30)
-    cve_link = db.StringField(max_length=50)
+    package = db.StringField(max_length=100)
+    cve_id = db.StringField(max_length=50)
+    cve_link = db.StringField(max_length=150)
     severity = db.StringField(max_length=30)
     content = db.EmbeddedDocumentField(Content)
 
