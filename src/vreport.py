@@ -20,6 +20,18 @@ import sys
 import os
 import logging
 
+# log configuration
+LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+LOG_LEVEL_DEFAULT = 'WARNING'
+# get log_level from environment or set default
+log_level = os.getenv('LOG_LEVEL', LOG_LEVEL_DEFAULT)
+if log_level.upper() not in LOG_LEVELS:
+    log_level = LOG_LEVEL_DEFAULT
+    logging.critical('LOG_LEVEL must be in range %s' % LOG_LEVELS)
+    sys.exit(0)
+logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(filename)s > %(message)s',
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                    level=logging.getLevelName(log_level.upper()))
 log = logging.getLogger(__file__)
 
 # App configuration
@@ -675,13 +687,16 @@ def report_mail():
     text = 'Mail versendet!'
     return str(text)
 
+
 @app.errorhandler(403)
 def forbidden(error):
     return render_template('403.html'), 403
 
+
 @app.errorhandler(404)
 def page_not_found(error):
     return render_template('404.html'), 404
+
 
 def mailing(sender, server, to, pw, port, vsum, isum):
     try:
@@ -723,9 +738,5 @@ def mail_message(sender, server, to, pw, port):
 
 
 if __name__ == "__main__":
-    log_level = "INFO"
-    logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(filename)s > %(message)s',
-                        datefmt="%Y-%m-%d %H:%M:%S",
-                        level=logging.getLevelName(log_level))  # filename='myapp.log'
     serve(app, host='0.0.0.0', port=5002)
 

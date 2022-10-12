@@ -84,7 +84,7 @@ class HarborAdapter(object):
 
     @functools.lru_cache(maxsize=600)
     def __api_call(self, pagination, func, *args, **kwargs):
-        self.log.info('calling harbor api %s' % func)
+        self.log.debug('calling harbor api %s' % func)
         page_size = MAX_PAGE_SIZE
         results = []
         if pagination:
@@ -190,7 +190,7 @@ class HarborAdapter(object):
                     try:
                         pro_dict[key[0]] = item.__getattribute__(key[1])
                     except AttributeError as e:
-                        self.log.info('get_projects: %a' % e)
+                        self.log.debug('get_projects: %a' % e)
                 project_list.append(pro_dict)
         return project_list
 
@@ -222,7 +222,7 @@ class HarborAdapter(object):
                         else:
                             tag_list.append('%s:%s' % (repository_name, artifact.__getattribute__('digest')))
                 except AttributeError as e:
-                    self.log.info('get_tags: %a' % e)
+                    self.log.debug('get_tags: %a' % e)
         return tag_list
 
     def get_vulnerabilities(self,
@@ -318,19 +318,19 @@ class HarborAdapter(object):
                         project_id=0,
                         severity_level='',
                         cve_id=''):
-        self.log.info('info start computing %s' % info_type)
+        self.log.debug('info start computing %s' % info_type)
         start = time.time()
         if info_type == 'projects':
             info = dict(info=self.get_harbor_projects())
             end = time.time()
-            self.log.info('info projects computed: %s' % (end-start))
+            self.log.debug('info projects computed: %s' % (end-start))
             return info
         elif info_type == 'scan':
             info = dict(info=self.get_harbor_scans(project_id=project_id,
                                                    severity_level=severity_level,
                                                    cve_id=cve_id))
             end = time.time()
-            self.log.info('info scan computed: %s' % (end-start))
+            self.log.debug('info scan computed: %s' % (end-start))
             return info
 
 
@@ -403,7 +403,7 @@ def main():
         if args.cve != 'no_value':
             cve_id = args.cve
 
-    log.info('args -> stage: %s, action: %s, info_type: %s, severity_level: %s, project_id: %s, cve_id: %s'
+    log.debug('args -> stage: %s, action: %s, info_type: %s, severity_level: %s, project_id: %s, cve_id: %s'
              % (stage, action, info_type, severity_level, project_id, cve_id))
 
     # continue according to action
