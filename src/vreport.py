@@ -1,21 +1,20 @@
-from email.message import EmailMessage
-from itertools import filterfalse
-
 import flask
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, make_response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_mongoengine import MongoEngine
 from flask_mongoengine.wtf import model_form
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.urls import url_encode
-from wtforms import Form, validators, StringField, BooleanField, PasswordField
+from wtforms import Form, validators, StringField, BooleanField
 from extlib import harboradapter
 from extlib import promadapter
 from waitress import serve
+from datetime import datetime
+from email.message import EmailMessage
+from itertools import filterfalse
 import mongoengine.errors
 import json
 import smtplib
-from datetime import datetime
 import sys
 import os
 import logging
