@@ -14,7 +14,7 @@ services:
       - API=${API}
       - PROMETHEUS=${PROMETHEUS}
       - ADMIN_URL=${ADMIN_URL}
-      - LOG_LEVEL=${LOGLEVEL:-warning}
+      - LOG_LEVEL=${LOG_LEVEL:-warning}
       - CACHE_MAXSIZE=100
       - DB_NAME=${DB_NAME}
       - DB_HOST=${DB_HOST}

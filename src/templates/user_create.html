@@ -56,7 +56,8 @@
                                 <td>{{ user.email }}</td>
                                 <td>{{ user.first_name }}</td>
                                 <td>{{ user.last_name }}</td>
-                                <td><a href="/user/delete?user_id={{ user._id['$oid'] }}" >Delete</a></td>
+                                <!--td><a href="/user/delete?user_id={{ user._id['$oid'] }}" >Delete</a></td -->
+                                <td><a href="/user/update?user_id={{ user._id['$oid'] }}" class="badge badge-success">Update</a></td>
                             </tr>
                         {% endfor %}
                 </table>

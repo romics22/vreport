@@ -102,11 +102,20 @@ class HarborAdapter(object):
                 results = func(*args, **kwargs)
             except ApiException as e:
                 self.log.error("Exception when calling Api: %s\n" % e)
+        c_info = self.__api_call.cache_info()
+        log.debug('Cache hits: %s, misses: %s, maxsize: %s, currsize: %s' % (c_info.hits,
+                                                                             c_info.misses,
+                                                                             c_info.maxsize,
+                                                                             c_info.currsize))
         return results
 
     def clear_cache(self):
         cache_info = self.__api_call.cache_info()
         self.__api_call.cache_clear()
+        return dict(info=cache_info)
+
+    def get_cache_info(self):
+        cache_info = self.__api_call.cache_info()
         return dict(info=cache_info)
 
     @staticmethod

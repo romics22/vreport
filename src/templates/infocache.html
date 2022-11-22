@@ -1,13 +1,12 @@
 {% extends 'base.html' %}
-{% block html_title %}Clear Report Cache{% endblock %}
+{% block html_title %}Report Cache Info{% endblock %}
 {% block content %}
-        <h1>Clear Report Cache</h1>
+        <h1>Report Cache Info</h1>
         <br>
         {% if report_info.info %}
         <h3>Cache Info</h3>
         <p>Hits: {{ report_info.info.hits }}, Misses: {{ report_info.info.misses }},
                 Max size: {{ report_info.info.maxsize }}, Current size: {{ report_info.info.currsize }}</p>
-        <h3>Cache cleared!</h3>
 
         {% else %}
             <span>no result: {{ report_info.info }}</span>

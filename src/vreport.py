@@ -12,6 +12,7 @@ from waitress import serve
 from datetime import datetime
 from email.message import EmailMessage
 from itertools import filterfalse
+from functools import wraps
 import mongoengine.errors
 import json
 import smtplib
@@ -113,7 +114,7 @@ class Assessment(db.Document):
     content = db.EmbeddedDocumentField(Content)
 
 
-AssesForm = model_form(Assessment)
+AssessForm = model_form(Assessment)
 UserForm = model_form(User)
 
 
@@ -184,18 +185,30 @@ def load_user(user_id):
         return None
 
 
+def admin_required(func):
+    # check if current user has name 'admin', if not show "forbidden"
+    @wraps(func)
+    # required for 'url_for' see
+    # https://stackoverflow.com/questions/14114296/why-does-flasks-url-for-throw-an-error-when-using-a-decorator-on-that-item-in-p
+    def wrapper(*args, **kwargs):
+        if current_user.name == 'admin':
+            func(*args, **kwargs)
+            return func(*args, **kwargs)
+        else:
+            return render_template('403.html'), 403
+    return wrapper
+
+
 @app.route('/user', methods=['GET'])
 @login_required
+@admin_required
 def user_query():
-    if current_user.name == 'admin':
-        users = User.objects
-        if not users:
-            users = None
-        else:
-            users = json.loads(users.to_json())
-        return render_template('user_list.html', users=users)
+    users = User.objects
+    if not users:
+        users = None
     else:
-        return render_template('403.html'), 403
+        users = json.loads(users.to_json())
+    return render_template('user_list.html', users=users)
 
 
 @app.route('/user/login', methods=['GET', 'POST'])
@@ -231,6 +244,7 @@ def user_logout():
 
 @app.route('/user/create', methods=['GET', 'POST'])
 @login_required
+@admin_required
 def user_create():
     form = UserForm(request.form)
     if request.method == 'POST' and form.validate():
@@ -252,6 +266,44 @@ def user_create():
     else:
         users = json.loads(users.to_json())
     return render_template('user_create.html', form=form, users=users)
+
+
+@app.route('/user/update', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def user_update():
+    form = UserForm(request.form)
+    # update user by id, e.g ?user_id=62ea78573656869bd50f5a7d
+    try:
+        user = User.objects(id=request.args.get('user_id')).first()
+    except mongoengine.errors.ValidationError:
+        user = None
+    if not user:
+        flash('no user exists with id=%s' % request.args.get('user_id'))
+        return redirect(url_for('user_query'))
+    # set form fields to values of user fields
+    for field in ['username', 'email', 'first_name', 'last_name']:
+        setattr(form, field, getattr(user, field, ''))
+    if request.method == 'POST' and form.validate():
+        if request.form.get('delete'):
+            user.delete()
+            return redirect(url_for('user_query'))
+        existing_user = User.objects(username=request.form['username']).first()
+        # make sure the username is unique
+        if existing_user is None or existing_user.id == user.id:
+            hashpass = generate_password_hash(request.form['password'], method='sha256')
+            user.username = request.form['username']
+            user.password = hashpass
+            user.email = request.form['email']
+            user.first_name = request.form['first_name']
+            user.last_name = request.form['last_name']
+            user.save()
+            return redirect(url_for('user_query'))
+        else:
+            flash('User "%s" already exists, nothing updated' % request.form['username'])
+            return redirect(url_for('user_update', **dict(request.args)))
+    else:
+        return render_template('user_update.html', form=form)
 
 
 @app.route('/user/%s' % arg_admin_route, methods=['GET', 'POST'])
@@ -301,23 +353,6 @@ def user_change_pw():
     return render_template('user_change_pw.html', form=form)
 
 
-@app.route('/user/delete', methods=['GET'])
-@login_required
-def user_delete():
-    # delete user by id, e.g ?user_id=62ea78573656869bd50f5a7d
-    user_id = request.args.get('user_id')
-    if user_id:
-        user = User.objects(id=user_id).first()
-        if not user:
-            return jsonify({'error': 'data not found'})
-        else:
-            user.delete()
-        # return jsonify(user.to_json())
-        return redirect(url_for('user_create'))
-    else:
-        return jsonify({'error': 'data not found'})
-
-
 @app.route('/assess', methods=['GET'])
 def assess_query():
     # log.info('rmi args: %s' % list(request.args.keys()))
@@ -350,7 +385,7 @@ def assess_query():
 @app.route(PATH_ASSESS_CREATE, methods=['GET', 'POST'])
 @login_required
 def assess_create():
-    form = AssesForm(request.form)
+    form = AssessForm(request.form)
     for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
         if request.args.get(field):
             setattr(form, field, request.args.get(field))
@@ -384,7 +419,7 @@ def assess_create():
 @app.route(PATH_ASSESS_UPDATE, methods=['GET', 'POST'])
 @login_required
 def assess_update():
-    form = AssesForm(request.form)
+    form = AssessForm(request.form)
     # get assessment object from request.args
     if request.args.get('assess_id'):
         assess = Assessment.objects(id=request.args.get('assess_id')).first()
@@ -425,22 +460,6 @@ def assess_update():
                 return_to = flask.session.get('return_to', 'assess_query')
                 return redirect(url_for(return_to, **dict(request.args)))
         return render_template('assess_update.html', form=form, users=users)
-
-
-@app.route('/assess/delete', methods=['GET'])
-@login_required
-def assess_delete():
-    # delete assessment by id, e.g ?assess_id=62ea78573656869bd50f5a7d
-    assess_id = request.args.get('assess_id')
-    if assess_id:
-        assess = Assessment.objects(id=assess_id).first()
-        if not assess:
-            return jsonify({'error': 'data not found'})
-        else:
-            assess.delete()
-        return redirect(url_for('assess_query'))
-    else:
-        return jsonify({'error': 'data not found'})
 
 
 @app.route("/", methods=['GET', 'POST'])
@@ -670,6 +689,12 @@ def containers():
 def clear_cache():
     report_info = harbor.clear_cache()
     return render_template('clearcache.html', report_info=report_info)
+
+
+@app.route("/infocache", methods=['GET'])
+def info_cache():
+    report_info = harbor.get_cache_info()
+    return render_template('infocache.html', report_info=report_info)
 
 
 @app.route("/reportmail", methods=['GET'])
