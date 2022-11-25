@@ -19,6 +19,7 @@ import smtplib
 import sys
 import os
 import logging
+import time
 
 # log configuration
 LOG_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
@@ -99,7 +100,7 @@ class User(db.Document):
 
 
 class Content(db.EmbeddedDocument):
-    text = db.StringField()
+    text = db.StringField(max_length=1024)
     category = db.StringField(max_length=3)
     updated_at = db.DateTimeField(default=datetime.utcnow)
 
@@ -112,6 +113,36 @@ class Assessment(db.Document):
     cve_link = db.StringField(max_length=150)
     severity = db.StringField(max_length=30)
     content = db.EmbeddedDocumentField(Content)
+
+
+class Project(db.Document):
+    last_seen = db.DateTimeField()
+    number = db.IntField(min_value=0, max_value=99)
+    name = db.StringField(max_length=80)
+
+
+class Vulnerability(db.Document):
+    project = db.ReferenceField(Project, reverse_delete_rule=1)
+    assessment = db.ReferenceField(Assessment, reverse_delete_rule=1)
+    assessment_bool = db.BooleanField(default=False)
+    assessment_text = db.StringField()
+    last_seen = db.DateTimeField()
+    image = db.StringField(max_length=150)
+    package = db.StringField(max_length=100)
+    cve_id = db.StringField(max_length=50)
+    cve_link = db.StringField(max_length=150)
+    severity = db.StringField(max_length=30)
+    fixed = db.StringField(max_length=150)
+    fixed_bool = db.BooleanField(default=False)
+    running_in_gz = db.BooleanField(default=False)
+    running_in_pz = db.BooleanField(default=False)
+
+
+class Update(db.Document):
+    datetime = db.DateTimeField()
+    registry = db.StringField(max_length=50)
+    updated = db.IntField()
+    created = db.IntField()
 
 
 AssessForm = model_form(Assessment)
@@ -175,6 +206,11 @@ CONFIG_PATH_MAIL = '../config/mailing_data_json.txt'
 # url paths
 PATH_ASSESS_CREATE = '/assess/create'
 PATH_ASSESS_UPDATE = '/assess/update'
+# views and arguments in session
+VREPORT = 'vreport'
+VREPORT_ARGS = 'vreport_args'
+ASSESSMENT = 'assess_query'
+ASSESSMENT_ARGS = 'assessment_args'
 
 
 @login_manager.user_loader
@@ -227,7 +263,7 @@ def user_login():
                 # if not is_safe_url(next):
                 #     return flask.abort(400)
                 #
-                return redirect(next_page or url_for('reports'))
+                return redirect(next_page or url_for('vreport'))
             else:
                 log.info('wrong password for user "%s"' % request.form['username'])
         else:
@@ -355,11 +391,22 @@ def user_change_pw():
 
 @app.route('/assess', methods=['GET'])
 def assess_query():
-    # log.info('rmi args: %s' % list(request.args.keys()))
     valid_filters = ['image', 'package', 'cve_id', 'severity']
     filter_dict = dict(request.args)
+    # when there are no request arguments
+    # set filter to arguments in session
+    # or restrict results to severity Critical
+    if len(filter_dict) == 0:
+        if '_user_id' in flask.session.keys() and flask.session.get(ASSESSMENT_ARGS):
+            filter_dict = flask.session.get(ASSESSMENT_ARGS)
+        else:
+            filter_dict['severity'] = 'Critical'
     # remove empty values and not valid keys
     filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
+    # set return_to if user is logged in
+    if '_user_id' in flask.session.keys():
+        flask.session['return_to'] = ASSESSMENT
+        flask.session[ASSESSMENT_ARGS] = filter_dict.copy()
     assess = Assessment.objects(**filter_dict)
     assess_list = []
     if not assess:
@@ -372,9 +419,6 @@ def assess_query():
                                                                      LOCAL_TIMEZONE).strftime('%d.%m.%Y %H:%M:%S')
             assess_list.append(a_dict)
     filter_param = url_encode(filter_dict)
-    # set return_to if user is logged in
-    if '_user_id' in flask.session.keys():
-        flask.session['return_to'] = 'assess_query'
     return render_template('assess_list.html',
                            assessments=assess_list,
                            users=User,
@@ -411,8 +455,21 @@ def assess_create():
                            content=content,
                            author=author_id
                            )
-        asses.save()
-        return redirect(url_for('reports'))
+        new_assess = asses.save()
+        v_record = Vulnerability.objects(id=request.args.get('v_id')).first()
+        # update vulnerability record
+        if v_record:
+            v_record.assessment = new_assess.id
+            v_record.assessment_bool = True
+            v_record.assessment_text = new_assess.content.text
+            v_record.save()
+        else:
+            log.warning('vulnerability with id "%s" not found' % request.args.get('v_id'))
+        args = flask.session.get(VREPORT_ARGS)
+        if args:
+            return redirect(url_for(VREPORT, **args))
+        else:
+            return redirect(url_for(VREPORT))
     return render_template('assess_create.html', form=form, users=users)
 
 
@@ -429,7 +486,7 @@ def assess_update():
                                     cve_id=request.args.get('cve_id'),
                                     severity=request.args.get('severity')).first()
     if not assess:
-        return jsonify({'error': 'data not found'})
+        return jsonify({'error': 'no assessment object found'})
     else:
         # set form fields to values of assessment fields
         for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
@@ -448,21 +505,243 @@ def assess_update():
         if request.method == 'POST':
             if request.form.get('delete'):
                 assess.delete()
-                return redirect(url_for('assess_query'))
             else:
                 assess.content.text = request.form['text']
                 assess.content.category = request.form['category']
                 assess.content.updated_at = datetime.utcnow
                 assess.author = User.objects(id=request.form['author']).first().id
                 assess.save()
-                if flask.session.get('return_to') == 'reports':
-                    return redirect(url_for(flask.session.get('return_to')))
-                return_to = flask.session.get('return_to', 'assess_query')
-                return redirect(url_for(return_to, **dict(request.args)))
+                # update vulnerability record
+                if request.args.get('v_id'):
+                    v_record = Vulnerability.objects(id=request.args.get('v_id')).first()
+                else:
+                    v_record = Vulnerability.objects(image=assess.image,
+                                                     package=assess.package,
+                                                     cve_id=assess.cve_id,
+                                                     severity=assess.severity).first()
+                if v_record:
+                    v_record.assessment_text = assess.content.text
+                    v_record.save()
+                else:
+                    log.warning('vulnerability with id "%s" not found' % request.args.get('v_id'))
+            # return to last location
+            if flask.session.get('return_to') == 'vreport':
+                return redirect(url_for(VREPORT, **flask.session.get(VREPORT_ARGS)))
+            return_to = flask.session.get('return_to', ASSESSMENT)
+            return redirect(url_for(return_to, **dict(request.args)))
         return render_template('assess_update.html', form=form, users=users)
 
 
-@app.route("/", methods=['GET', 'POST'])
+def update_project(data, last_seen):
+    for item in data['info']:
+        project = Project.objects(name=item['name'], number=item['id']).first()
+        if project:
+            project.last_seen = last_seen
+        else:
+            project = Project(name=item['name'],
+                              number=item['id'],
+                              last_seen=last_seen)
+        project.save()
+
+
+def get_projects(last_seen):
+    p_data = []
+    projects = Project.objects(last_seen=last_seen).order_by('name')
+    if projects:
+        for pro in projects:
+            log.info('rmi project: %s %s %s %s' % (pro.name, pro.number, pro.last_seen, pro.id))
+            p_data.append(dict(number=pro.number, id=pro.id))
+    else:
+        log.warning('no projects available')
+    return p_data
+
+
+def get_running_in_zone(zone, image):
+    # TODO: define function for running in global or private zone
+    # for testing only
+    if image == 'romics22/rmivhostcheck:1.8' and zone == 'gz':
+        return True
+    if image == 'romics22/get-started:part3' and zone == 'pz':
+        return True
+    return False
+
+
+def update_vulnerability(data, project_id, last_seen):
+    # update or create vulnerability objects
+    update_count = 0
+    create_count = 0
+    start = time.time()
+    for item in data['info']:
+        for v in item['vlist']:
+            vulnerability = Vulnerability.objects(project=project_id,
+                                                  image=item['image'],
+                                                  package=v['package'],
+                                                  cve_id=v['v_id'],
+                                                  severity=v['severity']).first()
+            if vulnerability:
+                # update values that might have changed since previous update
+                vulnerability.last_seen = last_seen
+                vulnerability.cve_link = v['links'][0]
+                vulnerability.fixed = v['fixed']
+                vulnerability.fixed_bool = True if v['fixed'] else False
+                vulnerability.running_in_gz = get_running_in_zone('gz', item['image'])
+                vulnerability.running_in_pz = get_running_in_zone('pz', item['image'])
+                update_count += 1
+            else:
+                # create new vulnerability object
+                vulnerability = Vulnerability(project=project_id,
+                                              last_seen=last_seen,
+                                              image=item['image'],
+                                              package=v['package'],
+                                              cve_id=v['v_id'],
+                                              cve_link=v['links'][0],
+                                              severity=v['severity'],
+                                              fixed=v['fixed'],
+                                              fixed_bool=True if v['fixed'] else False,
+                                              running_in_gz=get_running_in_zone('gz', item['image']),
+                                              running_in_pz=get_running_in_zone('pz', item['image']))
+                create_count += 1
+            vulnerability.save()
+    end = time.time()
+    return dict(updated=update_count, created=create_count, duration=end - start)
+
+
+def get_vulnerabilities(last_seen):
+    vulnerabilities = Vulnerability.objects(last_seen=last_seen)
+    if vulnerabilities:
+        for v in vulnerabilities:
+            log.info('rmi v: %s %s %s %s %s %s' % (v.project.name,
+                                                   v.image,
+                                                   v.package,
+                                                   v.cve_id,
+                                                   v.severity,
+                                                   v.last_seen))
+    else:
+        log.debug('no vulnerabilities available')
+
+
+@app.route('/test', methods=['GET'])
+def test_report():
+    last_seen = Update.objects.all().order_by('-datetime')[0].datetime
+    filter_dict = dict(request.args)
+    filter_dict['last_seen'] = last_seen
+    # test projects
+    # get_projects(last_seen)
+    vulnerabilities = Vulnerability.objects(**filter_dict)
+    if not vulnerabilities:
+        flash('No vulnerabilities available!')
+        return jsonify({'error': 'data not found'})
+    else:
+        v = json.loads(vulnerabilities.to_json())
+        # replace project id by project name
+        # not recommended because it slows down the query response -> list operations!
+        # v_list = []
+        # for v_dict in v:
+        #     v_dict['project'] = Project.objects(id=v_dict['project']['$oid']).first().name
+        #     v_list.append(v_dict)
+        return jsonify(v)
+
+
+@app.route('/test/delete_v', methods=['GET'])
+def test_delete_vulnerabilities():
+    num = Vulnerability.objects.delete()
+    log.info('rmi deleted vulnerabilities: %s' % num)
+    return jsonify({'deleted': num})
+
+
+@app.route('/', methods=['GET'])
+def vreport():
+    last_seen = Update.objects.all().order_by('-datetime')[0].datetime
+    last_import = Update.objects(datetime=last_seen).first()
+    valid_filters = ['image', 'package', 'cve_id', 'fixed_bool', 'severity',
+                     'project', 'assessment_bool', 'running_in_gz', 'running_in_pz']
+    filter_dict = dict(request.args)
+    # log.info('rmi filter dict length: %s' % len(filter_dict))
+    # when there are no request arguments
+    # set filter to arguments in session
+    # or restrict results to severity Critical
+    if len(filter_dict) == 0:
+        if '_user_id' in flask.session.keys() and flask.session.get(VREPORT_ARGS):
+            filter_dict = flask.session.get(VREPORT_ARGS)
+        else:
+            filter_dict['severity'] = 'Critical'
+    # remove empty values and not valid keys
+    filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
+    # store query in session
+    if '_user_id' in flask.session.keys():
+        # set return_to and args for navigation back to vreport
+        flask.session['return_to'] = VREPORT
+        flask.session[VREPORT_ARGS] = filter_dict.copy()
+    # add last_seen to restrict every query to the latest update of the vulnerabilities
+    filter_dict['last_seen'] = last_seen
+    # change string to Boolean for Boolean Filters
+    for key in ['fixed_bool', 'assessment_bool']:
+        if key in filter_dict.keys():
+            if filter_dict[key] == 'True':
+                filter_dict[key] = True
+            else:
+                filter_dict[key] = False
+    for key in ['running_in_gz', 'running_in_pz']:
+        if key in filter_dict.keys():
+            if filter_dict[key] == 'on':
+                filter_dict[key] = True
+            else:
+                filter_dict[key] = False
+    # log.info('rmi filter dict: %r' % filter_dict)
+    # get projects
+    projects = Project.objects(last_seen=last_seen).order_by('name')
+    p = json.loads(projects.to_json())
+    # get vulnerabilities
+    vulnerabilities = Vulnerability.objects(**filter_dict)
+    if not vulnerabilities:
+        flash('No vulnerabilities available!')
+        v = []
+    else:
+        v = json.loads(vulnerabilities.to_json())
+    filter_param = url_encode(filter_dict)
+    return render_template('vreport.html',
+                           vulnerabilities=v,
+                           projects=p,
+                           filters=filter_dict,
+                           filter_param=filter_param,
+                           version=VERSION,
+                           last_import=last_import)
+
+
+@app.route('/import/v_scan_data', methods=['GET'])
+def import_data_from_harbor():
+    # store update time and registry in database
+    new_update = Update(registry=arg_registry, datetime=datetime.utcnow).save()
+    up_datetime = Update.objects.all().order_by('-datetime')[0].datetime
+    # get projects from harbor
+    project_info = harbor.get_harbor_info(info_type='projects')
+    # get running containers from prometheus
+    container_info = prom.get_running_containers()
+    update_project(project_info, up_datetime)
+    updated = created = 0
+    duration = 0.0
+    for p in get_projects(up_datetime):
+        # test
+        # for p in [dict(number=7, id='637e1f44962f997b990a41f8')]:
+        report_info = harbor.get_harbor_info(info_type='scan',
+                                             project_id=p['number'],
+                                             severity_level='',
+                                             cve_id='')
+        stats = update_vulnerability(report_info, p['id'], up_datetime)
+        updated += stats['updated']
+        created += stats['created']
+        duration += stats['duration']
+    log.info('rmi update vulnerabilities duration: %s' % duration)
+    log.info('rmi updated: %s, created: %s' % (updated, created))
+    new_update.updated = updated
+    new_update.created = created
+    new_update.save()
+    log.info('rmi update time: %s' % new_update.datetime)
+    log.info('rmi update time: %s' % Update.objects.all().order_by('-datetime')[0].datetime)
+    return redirect(url_for('vreport'))
+
+
+@app.route('/reports_old', methods=['GET', 'POST'])
 def reports():
     form = ReportsForm(request.form)
     # get projects from harbor
@@ -659,7 +938,7 @@ def reports():
             pzrunning_check = ''
             notassessed_check = ''
 
-    return render_template('vreport.html', form=form, report_info=report_info, cve=cve, project_info=project_info,
+    return render_template('vreport_old.html', form=form, report_info=report_info, cve=cve, project_info=project_info,
                            version=VERSION, results=results,
                            selected=dict(projects=projects,
                                          severity=severity,
@@ -667,16 +946,6 @@ def reports():
                                          gzrunning=gzrunning_check,
                                          pzrunning=pzrunning_check,
                                          notassessed=notassessed_check))
-
-
-@app.route("/test", methods=['GET', 'POST'])
-def test():
-    report_info = harbor.get_harbor_info(info_type='scan',
-                                         project_id='2',
-                                         severity_level='Critical',
-                                         cve_id='')
-
-    return report_info
 
 
 @app.route("/containers", methods=['GET', 'POST'])
