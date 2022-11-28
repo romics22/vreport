@@ -134,6 +134,7 @@ class Vulnerability(db.Document):
     severity = db.StringField(max_length=30)
     fixed = db.StringField(max_length=150)
     fixed_bool = db.BooleanField(default=False)
+    running = db.BooleanField(default=False)
     running_in_gz = db.BooleanField(default=False)
     running_in_pz = db.BooleanField(default=False)
 
@@ -196,12 +197,15 @@ prom = promadapter.PrometheusAdapter(credentials='',
                                      api_version='v1',
                                      protocol='http')
 
-VERSION = '2.3.0'
+VERSION = '2.3.1'
 
 # local timezone
 LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
 # file path to mailing configuration
 CONFIG_PATH_MAIL = '../config/mailing_data_json.txt'
+
+GLOBALE_ZONE = '193.135.'
+PRIVATE_ZONE = '10.36.'
 
 # url paths
 PATH_ASSESS_CREATE = '/assess/create'
@@ -550,23 +554,38 @@ def get_projects(last_seen):
     if projects:
         for pro in projects:
             log.info('rmi project: %s %s %s %s' % (pro.name, pro.number, pro.last_seen, pro.id))
-            p_data.append(dict(number=pro.number, id=pro.id))
+            p_data.append(dict(number=pro.number, id=pro.id, name=pro.name))
     else:
         log.warning('no projects available')
     return p_data
 
 
-def get_running_in_zone(zone, image):
-    # TODO: define function for running in global or private zone
-    # for testing only
-    if image == 'romics22/rmivhostcheck:1.8' and zone == 'gz':
-        return True
-    if image == 'romics22/get-started:part3' and zone == 'pz':
-        return True
-    return False
+def get_running_images(container_info):
+    network = dict(gz=GLOBALE_ZONE, pz=PRIVATE_ZONE)
+    running_images = dict(gz=set(), pz=set())
+    for item in container_info['info']:
+        image_full = item['metric']['image']
+        # remove repo name from image
+        image = '/'.join(image_full.split('/')[1:])
+        hostaddr = item['metric']['hostaddr']
+        # image can be '' if it is not in harbor or in another registry than docker hub
+        if image:
+            for key in network.keys():
+                if hostaddr.startswith(network[key]):
+                    running_images[key].add(image)
+        # combine both zones to all
+        running_images['all'] = running_images['gz'].union(running_images['pz'])
+    return running_images
 
 
-def update_vulnerability(data, project_id, last_seen):
+def get_running_in_zone(running_images, zone, image):
+    if image in running_images[zone]:
+        return True
+    else:
+        return False
+
+
+def update_vulnerability(data, project_id, last_seen, running_images):
     # update or create vulnerability objects
     update_count = 0
     create_count = 0
@@ -584,8 +603,9 @@ def update_vulnerability(data, project_id, last_seen):
                 vulnerability.cve_link = v['links'][0]
                 vulnerability.fixed = v['fixed']
                 vulnerability.fixed_bool = True if v['fixed'] else False
-                vulnerability.running_in_gz = get_running_in_zone('gz', item['image'])
-                vulnerability.running_in_pz = get_running_in_zone('pz', item['image'])
+                vulnerability.running = get_running_in_zone(running_images, 'all', item['image'])
+                vulnerability.running_in_gz = get_running_in_zone(running_images, 'gz', item['image'])
+                vulnerability.running_in_pz = get_running_in_zone(running_images, 'pz', item['image'])
                 update_count += 1
             else:
                 # create new vulnerability object
@@ -598,8 +618,9 @@ def update_vulnerability(data, project_id, last_seen):
                                               severity=v['severity'],
                                               fixed=v['fixed'],
                                               fixed_bool=True if v['fixed'] else False,
-                                              running_in_gz=get_running_in_zone('gz', item['image']),
-                                              running_in_pz=get_running_in_zone('pz', item['image']))
+                                              running=get_running_in_zone(running_images, 'all', item['image']),
+                                              running_in_gz=get_running_in_zone(running_images, 'gz', item['image']),
+                                              running_in_pz=get_running_in_zone(running_images, 'pz', item['image']))
                 create_count += 1
             vulnerability.save()
     end = time.time()
@@ -633,12 +654,6 @@ def test_report():
         return jsonify({'error': 'data not found'})
     else:
         v = json.loads(vulnerabilities.to_json())
-        # replace project id by project name
-        # not recommended because it slows down the query response -> list operations!
-        # v_list = []
-        # for v_dict in v:
-        #     v_dict['project'] = Project.objects(id=v_dict['project']['$oid']).first().name
-        #     v_list.append(v_dict)
         return jsonify(v)
 
 
@@ -651,10 +666,13 @@ def test_delete_vulnerabilities():
 
 @app.route('/', methods=['GET'])
 def vreport():
-    last_seen = Update.objects.all().order_by('-datetime')[0].datetime
+    if Update.objects().first():
+        last_seen = Update.objects.all().order_by('-datetime')[0].datetime
+    else:
+        last_seen = datetime.utcnow
     last_import = Update.objects(datetime=last_seen).first()
     valid_filters = ['image', 'package', 'cve_id', 'fixed_bool', 'severity',
-                     'project', 'assessment_bool', 'running_in_gz', 'running_in_pz']
+                     'project', 'assessment_bool', 'running', 'running_in_gz', 'running_in_pz']
     filter_dict = dict(request.args)
     # log.info('rmi filter dict length: %s' % len(filter_dict))
     # when there are no request arguments
@@ -681,7 +699,7 @@ def vreport():
                 filter_dict[key] = True
             else:
                 filter_dict[key] = False
-    for key in ['running_in_gz', 'running_in_pz']:
+    for key in ['running', 'running_in_gz', 'running_in_pz']:
         if key in filter_dict.keys():
             if filter_dict[key] == 'on':
                 filter_dict[key] = True
@@ -717,20 +735,32 @@ def import_data_from_harbor():
     project_info = harbor.get_harbor_info(info_type='projects')
     # get running containers from prometheus
     container_info = prom.get_running_containers()
+    running_images = get_running_images(container_info)
+    log.debug('rmi running images: %r' % running_images)
     update_project(project_info, up_datetime)
     updated = created = 0
     duration = 0.0
     for p in get_projects(up_datetime):
-        # test
-        # for p in [dict(number=7, id='637e1f44962f997b990a41f8')]:
+        # test with project snowflake
+        # for p in [dict(number=14, id='638462f12cfeb014234e9c0e', name='intersim')]:
+        # test with project intersim
+        # for p in [dict(number=10, id='638462f12cfeb014234e9c08', name='intersim')]:
         report_info = harbor.get_harbor_info(info_type='scan',
                                              project_id=p['number'],
                                              severity_level='',
                                              cve_id='')
-        stats = update_vulnerability(report_info, p['id'], up_datetime)
-        updated += stats['updated']
-        created += stats['created']
-        duration += stats['duration']
+        log.debug('start update for project  %s %s' % (p['number'], p['name']))
+        if p['number'] == 14:
+            log.debug('skipped project nr 14')
+        else:
+            stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
+            updated += stats['updated']
+            created += stats['created']
+            duration += stats['duration']
+            log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
+                                                                               stats['updated'],
+                                                                               stats['created'],
+                                                                               stats['duration']))
     log.info('rmi update vulnerabilities duration: %s' % duration)
     log.info('rmi updated: %s, created: %s' % (updated, created))
     new_update.updated = updated

@@ -25,6 +25,10 @@
                     </div>
                 </div>
                 <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="running" name="running" {{ 'checked' if filters.get('running') else '' }}>
+                    <label class="form-check-label" for="running">running</label>
+                </div>
+                <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="running_in_gz" name="running_in_gz" {{ 'checked' if filters.get('running_in_gz') else '' }}>
                     <label class="form-check-label" for="running_in_gz">running in Globale Zone</label>
                 </div>
@@ -135,10 +139,10 @@
                         {% for v in vulnerabilities %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>{{ v.image }}</td>
-                                <td>{{ v.package }}</td>
+                                <td class="text-break">{{ v.image }}</td>
+                                <td class="text-break">{{ v.package }}</td>
                                 <td><a href="{{ v.cve_link }}" target="_blank">{{ v.cve_id }}</a></td>
-                                <td>{{ v.fixed }}</td>
+                                <td class="text-break">{{ v.fixed }}</td>
                                 <td>{{ v.severity }}</td>
                                 <td>
                                     {% if v.assessment %}
