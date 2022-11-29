@@ -674,7 +674,6 @@ def vreport():
     valid_filters = ['image', 'package', 'cve_id', 'fixed_bool', 'severity',
                      'project', 'assessment_bool', 'running', 'running_in_gz', 'running_in_pz']
     filter_dict = dict(request.args)
-    # log.info('rmi filter dict length: %s' % len(filter_dict))
     # when there are no request arguments
     # set filter to arguments in session
     # or restrict results to severity Critical
@@ -741,26 +740,19 @@ def import_data_from_harbor():
     updated = created = 0
     duration = 0.0
     for p in get_projects(up_datetime):
-        # test with project snowflake
-        # for p in [dict(number=14, id='638462f12cfeb014234e9c0e', name='intersim')]:
-        # test with project intersim
-        # for p in [dict(number=10, id='638462f12cfeb014234e9c08', name='intersim')]:
         report_info = harbor.get_harbor_info(info_type='scan',
                                              project_id=p['number'],
                                              severity_level='',
                                              cve_id='')
         log.debug('start update for project  %s %s' % (p['number'], p['name']))
-        if p['number'] == 14:
-            log.debug('skipped project nr 14')
-        else:
-            stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
-            updated += stats['updated']
-            created += stats['created']
-            duration += stats['duration']
-            log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
-                                                                               stats['updated'],
-                                                                               stats['created'],
-                                                                               stats['duration']))
+        stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
+        updated += stats['updated']
+        created += stats['created']
+        duration += stats['duration']
+        log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
+                                                                           stats['updated'],
+                                                                           stats['created'],
+                                                                           stats['duration']))
     log.info('rmi update vulnerabilities duration: %s' % duration)
     log.info('rmi updated: %s, created: %s' % (updated, created))
     new_update.updated = updated

@@ -2,7 +2,7 @@ version: '2'
 
 services:
   vreport:
-    image: ${INTERNAL_REGISTRY}/aio/vreport:2.3.0
+    image: ${INTERNAL_REGISTRY}/aio/vreport:2.3.1
     container_name: vreport
     restart: always
     ports:
