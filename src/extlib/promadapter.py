@@ -116,7 +116,7 @@ class PrometheusAdapter(object):
             return http.request('GET', url, headers=self.headers)
         except urllib3.exceptions.MaxRetryError as e:
             self.logger.error('MaxRetryError: %s' % e)
-            return None
+            raise
 
 
 def main():

@@ -13,6 +13,7 @@ from datetime import datetime
 from email.message import EmailMessage
 from itertools import filterfalse
 from functools import wraps
+from urllib3.exceptions import MaxRetryError
 import mongoengine.errors
 import json
 import smtplib
@@ -146,6 +147,10 @@ class Update(db.Document):
     created = db.IntField()
 
 
+class State(db.Document):
+    warning = db.StringField(max_length=150)
+
+
 AssessForm = model_form(Assessment)
 UserForm = model_form(User)
 
@@ -197,7 +202,7 @@ prom = promadapter.PrometheusAdapter(credentials='',
                                      api_version='v1',
                                      protocol='http')
 
-VERSION = '2.3.1'
+VERSION = '2.3.2'
 
 # local timezone
 LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
@@ -401,16 +406,15 @@ def assess_query():
     # set filter to arguments in session
     # or restrict results to severity Critical
     if len(filter_dict) == 0:
-        if '_user_id' in flask.session.keys() and flask.session.get(ASSESSMENT_ARGS):
+        if flask.session.get(ASSESSMENT_ARGS):
             filter_dict = flask.session.get(ASSESSMENT_ARGS)
         else:
             filter_dict['severity'] = 'Critical'
     # remove empty values and not valid keys
     filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
     # set return_to if user is logged in
-    if '_user_id' in flask.session.keys():
-        flask.session['return_to'] = ASSESSMENT
-        flask.session[ASSESSMENT_ARGS] = filter_dict.copy()
+    flask.session['return_to'] = ASSESSMENT
+    flask.session[ASSESSMENT_ARGS] = filter_dict.copy()
     assess = Assessment.objects(**filter_dict)
     assess_list = []
     if not assess:
@@ -562,7 +566,7 @@ def get_projects(last_seen):
 
 def get_running_images(container_info):
     network = dict(gz=GLOBALE_ZONE, pz=PRIVATE_ZONE)
-    running_images = dict(gz=set(), pz=set())
+    running_images = dict(gz=set(), pz=set(), all=set())
     for item in container_info['info']:
         image_full = item['metric']['image']
         # remove repo name from image
@@ -658,18 +662,33 @@ def test_report():
 
 
 @app.route('/test/delete_v', methods=['GET'])
+@login_required
+@admin_required
 def test_delete_vulnerabilities():
     num = Vulnerability.objects.delete()
     log.info('rmi deleted vulnerabilities: %s' % num)
     return jsonify({'deleted': num})
 
 
+@app.route('/test/delete_a', methods=['GET'])
+@login_required
+@admin_required
+def test_delete_assessments():
+    num = Assessment.objects.delete()
+    log.info('rmi deleted assessments: %s' % num)
+    return jsonify({'deleted': num})
+
+
 @app.route('/', methods=['GET'])
 def vreport():
+    if State.objects().first():
+        state_warning = State.objects().first().warning
+    else:
+        state_warning = 0
     if Update.objects().first():
         last_seen = Update.objects.all().order_by('-datetime')[0].datetime
     else:
-        last_seen = datetime.utcnow
+        last_seen = datetime.utcnow()
     last_import = Update.objects(datetime=last_seen).first()
     valid_filters = ['image', 'package', 'cve_id', 'fixed_bool', 'severity',
                      'project', 'assessment_bool', 'running', 'running_in_gz', 'running_in_pz']
@@ -678,17 +697,16 @@ def vreport():
     # set filter to arguments in session
     # or restrict results to severity Critical
     if len(filter_dict) == 0:
-        if '_user_id' in flask.session.keys() and flask.session.get(VREPORT_ARGS):
+        if flask.session.get(VREPORT_ARGS):
             filter_dict = flask.session.get(VREPORT_ARGS)
         else:
             filter_dict['severity'] = 'Critical'
     # remove empty values and not valid keys
     filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
     # store query in session
-    if '_user_id' in flask.session.keys():
-        # set return_to and args for navigation back to vreport
-        flask.session['return_to'] = VREPORT
-        flask.session[VREPORT_ARGS] = filter_dict.copy()
+    # set return_to and args for navigation back to vreport
+    flask.session['return_to'] = VREPORT
+    flask.session[VREPORT_ARGS] = filter_dict.copy()
     # add last_seen to restrict every query to the latest update of the vulnerabilities
     filter_dict['last_seen'] = last_seen
     # change string to Boolean for Boolean Filters
@@ -704,7 +722,7 @@ def vreport():
                 filter_dict[key] = True
             else:
                 filter_dict[key] = False
-    # log.info('rmi filter dict: %r' % filter_dict)
+    # log.debug('rmi filter dict: %r' % filter_dict)
     # get projects
     projects = Project.objects(last_seen=last_seen).order_by('name')
     p = json.loads(projects.to_json())
@@ -722,44 +740,75 @@ def vreport():
                            filters=filter_dict,
                            filter_param=filter_param,
                            version=VERSION,
-                           last_import=last_import)
+                           last_import=last_import,
+                           warning=state_warning)
+
+
+def _set_state_warning(message):
+    state = State.objects().first()
+    if state:
+        state.warning = message
+    else:
+        state = State(warning=message)
+    state.save()
 
 
 @app.route('/import/v_scan_data', methods=['GET'])
 def import_data_from_harbor():
-    # store update time and registry in database
-    new_update = Update(registry=arg_registry, datetime=datetime.utcnow).save()
-    up_datetime = Update.objects.all().order_by('-datetime')[0].datetime
+    # set warning during import
+    _set_state_warning('import of vulnerability data ist running, reports may be inconsistent!')
+    up_datetime = datetime.utcnow()
     # get projects from harbor
-    project_info = harbor.get_harbor_info(info_type='projects')
+    try:
+        project_info = harbor.get_harbor_info(info_type='projects')
+    except MaxRetryError:
+        log.error('Connection to "%s" failed, no project info received' % arg_registry)
+        _set_state_warning('last import of project data at %s failed,' \
+                           ' data is not up-to-date!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
+        return redirect(url_for('vreport'))
     # get running containers from prometheus
-    container_info = prom.get_running_containers()
+    try:
+        container_info = prom.get_running_containers()
+    except MaxRetryError:
+        log.error('Connection to "%s" failed, no container info received' % arg_prometheus)
+        _set_state_warning('last import of container data at %s failed,' \
+                           ' data is not up-to-date!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
+        return redirect(url_for('vreport'))
     running_images = get_running_images(container_info)
-    log.debug('rmi running images: %r' % running_images)
     update_project(project_info, up_datetime)
     updated = created = 0
     duration = 0.0
-    for p in get_projects(up_datetime):
-        report_info = harbor.get_harbor_info(info_type='scan',
-                                             project_id=p['number'],
-                                             severity_level='',
-                                             cve_id='')
-        log.debug('start update for project  %s %s' % (p['number'], p['name']))
-        stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
-        updated += stats['updated']
-        created += stats['created']
-        duration += stats['duration']
-        log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
-                                                                           stats['updated'],
-                                                                           stats['created'],
-                                                                           stats['duration']))
-    log.info('rmi update vulnerabilities duration: %s' % duration)
-    log.info('rmi updated: %s, created: %s' % (updated, created))
-    new_update.updated = updated
-    new_update.created = created
-    new_update.save()
-    log.info('rmi update time: %s' % new_update.datetime)
-    log.info('rmi update time: %s' % Update.objects.all().order_by('-datetime')[0].datetime)
+    try:
+        # get vulnerability scan data from harbor api by project
+        for p in get_projects(up_datetime):
+            report_info = harbor.get_harbor_info(info_type='scan',
+                                                 project_id=p['number'],
+                                                 severity_level='',
+                                                 cve_id='')
+            log.debug('start update for project  %s %s' % (p['number'], p['name']))
+            stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
+            updated += stats['updated']
+            created += stats['created']
+            duration += stats['duration']
+            log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
+                                                                               stats['updated'],
+                                                                               stats['created'],
+                                                                               stats['duration']))
+    except MaxRetryError:
+        log.error('Connection to "%s" failed, vulnerability data is not up-to-date!' % arg_registry)
+        _set_state_warning('last import of vulnerability data at %s failed,' \
+                           ' data is not consistent!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
+        return redirect(url_for('vreport'))
+    log.debug('update vulnerabilities duration: %s' % duration)
+    log.debug('updated: %s, created: %s' % (updated, created))
+    # store update time and registry in database
+    Update(registry=arg_registry,
+           datetime=up_datetime,
+           updated=updated,
+           created=created).save()
+    log.debug('update time: %s' % up_datetime)
+    # clear warning after import
+    _set_state_warning('')
     return redirect(url_for('vreport'))
 
 
