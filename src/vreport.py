@@ -235,6 +235,7 @@ def admin_required(func):
     @wraps(func)
     # required for 'url_for' see
     # https://stackoverflow.com/questions/14114296/why-does-flasks-url-for-throw-an-error-when-using-a-decorator-on-that-item-in-p
+    # TODO: issue function is executed twice, why?
     def wrapper(*args, **kwargs):
         if current_user.name == 'admin':
             func(*args, **kwargs)
@@ -757,6 +758,9 @@ def _set_state_warning(message):
 def import_data_from_harbor():
     # set warning during import
     _set_state_warning('import of vulnerability data ist running, reports may be inconsistent!')
+    # clear cache in harbor adapter
+    clear_cache()
+    # set time of update
     up_datetime = datetime.utcnow()
     # get projects from harbor
     try:

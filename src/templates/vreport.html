@@ -161,5 +161,13 @@
                     {% endif %}
                 </table>
             </form>
-<p><small>Data from <a href="https://{{ last_import.registry }}">{{ last_import.registry }}</a> | last import at UTC {{ last_import.datetime.strftime('%Y-%m-%d %H:%M:%S') }} | vulnerability records updated {{ last_import.updated }}, created {{ last_import.created }}</small></p>
+<p>
+    <small>
+    {% if last_import %}
+    Data from <a href="https://{{ last_import.registry }}">{{ last_import.registry }}</a> | last import at UTC {{ last_import.datetime.strftime('%Y-%m-%d %H:%M:%S') }} | vulnerability records updated {{ last_import.updated }}, created {{ last_import.created }}
+    {% else %}
+    No information about last update available
+    {% endif %}
+    </small>
+</p>
 {% endblock %}
