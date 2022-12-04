@@ -106,8 +106,16 @@ class Content(db.EmbeddedDocument):
     updated_at = db.DateTimeField(default=datetime.utcnow)
 
 
+class Project(db.Document):
+    last_seen = db.DateTimeField()
+    number = db.IntField(min_value=0, max_value=99)
+    name = db.StringField(max_length=80)
+
+
 class Assessment(db.Document):
-    author = db.ReferenceField(User, reverse_delete_rule=1)
+    last_seen = db.DateTimeField()
+    author = db.ReferenceField(User, reverse_delete_rule=mongoengine.NULLIFY)
+    project = db.ReferenceField(Project, reverse_delete_rule=mongoengine.NULLIFY)
     image = db.StringField(max_length=150)
     package = db.StringField(max_length=100)
     cve_id = db.StringField(max_length=50)
@@ -116,15 +124,9 @@ class Assessment(db.Document):
     content = db.EmbeddedDocumentField(Content)
 
 
-class Project(db.Document):
-    last_seen = db.DateTimeField()
-    number = db.IntField(min_value=0, max_value=99)
-    name = db.StringField(max_length=80)
-
-
 class Vulnerability(db.Document):
-    project = db.ReferenceField(Project, reverse_delete_rule=1)
-    assessment = db.ReferenceField(Assessment, reverse_delete_rule=1)
+    project = db.ReferenceField(Project, reverse_delete_rule=mongoengine.NULLIFY)
+    assessment = db.ReferenceField(Assessment, reverse_delete_rule=mongoengine.NULLIFY)
     assessment_bool = db.BooleanField(default=False)
     assessment_text = db.StringField()
     last_seen = db.DateTimeField()
@@ -138,6 +140,13 @@ class Vulnerability(db.Document):
     running = db.BooleanField(default=False)
     running_in_gz = db.BooleanField(default=False)
     running_in_pz = db.BooleanField(default=False)
+    meta = {
+        'index_background': True,
+        'indexes': [
+            {'name': 'v_search',
+             'fields': ['project', 'image', 'package', 'cve_id', 'severity']}
+        ]
+    }
 
 
 class Update(db.Document):
@@ -439,7 +448,7 @@ def assess_query():
 @login_required
 def assess_create():
     form = AssessForm(request.form)
-    for field in ['image', 'package', 'cve_id', 'cve_link', 'severity']:
+    for field in ['project_id', 'image', 'package', 'cve_id', 'cve_link', 'severity']:
         if request.args.get(field):
             setattr(form, field, request.args.get(field))
         else:
@@ -456,7 +465,8 @@ def assess_create():
             author_id = None
         content = Content(text=request.form['text'],
                           category=request.form['category'])
-        asses = Assessment(image=request.form['image'],
+        asses = Assessment(project=request.form['project_id'],
+                           image=request.form['image'],
                            package=request.form['package'],
                            cve_id=request.form['cve_id'],
                            cve_link=request.form['cve_link'],
@@ -524,7 +534,9 @@ def assess_update():
                 if request.args.get('v_id'):
                     v_record = Vulnerability.objects(id=request.args.get('v_id')).first()
                 else:
-                    v_record = Vulnerability.objects(image=assess.image,
+                    # TODO: check execution plan for this query
+                    v_record = Vulnerability.objects(project=assess.project,
+                                                     image=assess.image,
                                                      package=assess.package,
                                                      cve_id=assess.cve_id,
                                                      severity=assess.severity).first()
@@ -532,7 +544,7 @@ def assess_update():
                     v_record.assessment_text = assess.content.text
                     v_record.save()
                 else:
-                    log.warning('vulnerability with id "%s" not found' % request.args.get('v_id'))
+                    log.warning('in assess_update: vulnerability with id "%s" not found' % request.args.get('v_id'))
             # return to last location
             if flask.session.get('return_to') == 'vreport':
                 return redirect(url_for(VREPORT, **flask.session.get(VREPORT_ARGS)))
@@ -597,6 +609,11 @@ def update_vulnerability(data, project_id, last_seen, running_images):
     start = time.time()
     for item in data['info']:
         for v in item['vlist']:
+            # log.debug('rmi explain: %r' % Vulnerability.objects(project=project_id,
+            #                                                     image=item['image'],
+            #                                                     package=v['package'],
+            #                                                     cve_id=v['v_id'],
+            #                                                     severity=v['severity']).explain())
             vulnerability = Vulnerability.objects(project=project_id,
                                                   image=item['image'],
                                                   package=v['package'],
@@ -630,6 +647,31 @@ def update_vulnerability(data, project_id, last_seen, running_images):
             vulnerability.save()
     end = time.time()
     return dict(updated=update_count, created=create_count, duration=end - start)
+
+
+def create_vulnerability(data, project_id, last_seen, running_images):
+    # create vulnerability objects from scratch
+    create_count = 0
+    start = time.time()
+    for item in data['info']:
+        for v in item['vlist']:
+            # create new vulnerability object
+            vulnerability = Vulnerability(project=project_id,
+                                          last_seen=last_seen,
+                                          image=item['image'],
+                                          package=v['package'],
+                                          cve_id=v['v_id'],
+                                          cve_link=v['links'][0],
+                                          severity=v['severity'],
+                                          fixed=v['fixed'],
+                                          fixed_bool=True if v['fixed'] else False,
+                                          running=get_running_in_zone(running_images, 'all', item['image']),
+                                          running_in_gz=get_running_in_zone(running_images, 'gz', item['image']),
+                                          running_in_pz=get_running_in_zone(running_images, 'pz', item['image']))
+            create_count += 1
+            vulnerability.save()
+    end = time.time()
+    return dict(updated=0, created=create_count, duration=end - start)
 
 
 def get_vulnerabilities(last_seen):
@@ -758,6 +800,10 @@ def _set_state_warning(message):
 def import_data_from_harbor():
     # set warning during import
     _set_state_warning('import of vulnerability data ist running, reports may be inconsistent!')
+    if request.args.get('create'):
+        # delete all vulnerabilities
+        deleted_count = Vulnerability.objects.delete()
+        log.debug('deleted vulnerabilities: %s' % deleted_count)
     # clear cache in harbor adapter
     clear_cache()
     # set time of update
@@ -767,7 +813,7 @@ def import_data_from_harbor():
         project_info = harbor.get_harbor_info(info_type='projects')
     except MaxRetryError:
         log.error('Connection to "%s" failed, no project info received' % arg_registry)
-        _set_state_warning('last import of project data at %s failed,' \
+        _set_state_warning('last import of project data at %s failed,'
                            ' data is not up-to-date!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
         return redirect(url_for('vreport'))
     # get running containers from prometheus
@@ -775,7 +821,7 @@ def import_data_from_harbor():
         container_info = prom.get_running_containers()
     except MaxRetryError:
         log.error('Connection to "%s" failed, no container info received' % arg_prometheus)
-        _set_state_warning('last import of container data at %s failed,' \
+        _set_state_warning('last import of container data at %s failed,'
                            ' data is not up-to-date!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
         return redirect(url_for('vreport'))
     running_images = get_running_images(container_info)
@@ -790,7 +836,10 @@ def import_data_from_harbor():
                                                  severity_level='',
                                                  cve_id='')
             log.debug('start update for project  %s %s' % (p['number'], p['name']))
-            stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
+            if request.args.get('create'):
+                stats = create_vulnerability(report_info, p['id'], up_datetime, running_images)
+            else:
+                stats = update_vulnerability(report_info, p['id'], up_datetime, running_images)
             updated += stats['updated']
             created += stats['created']
             duration += stats['duration']
@@ -800,7 +849,7 @@ def import_data_from_harbor():
                                                                                stats['duration']))
     except MaxRetryError:
         log.error('Connection to "%s" failed, vulnerability data is not up-to-date!' % arg_registry)
-        _set_state_warning('last import of vulnerability data at %s failed,' \
+        _set_state_warning('last import of vulnerability data at %s failed,'
                            ' data is not consistent!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
         return redirect(url_for('vreport'))
     log.debug('update vulnerabilities duration: %s' % duration)
