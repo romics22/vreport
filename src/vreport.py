@@ -211,7 +211,7 @@ prom = promadapter.PrometheusAdapter(credentials='',
                                      api_version='v1',
                                      protocol='http')
 
-VERSION = '2.3.2'
+VERSION = '2.3.3'
 
 # local timezone
 LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
@@ -244,10 +244,8 @@ def admin_required(func):
     @wraps(func)
     # required for 'url_for' see
     # https://stackoverflow.com/questions/14114296/why-does-flasks-url-for-throw-an-error-when-using-a-decorator-on-that-item-in-p
-    # TODO: issue function is executed twice, why?
     def wrapper(*args, **kwargs):
         if current_user.name == 'admin':
-            func(*args, **kwargs)
             return func(*args, **kwargs)
         else:
             return render_template('403.html'), 403
@@ -414,15 +412,16 @@ def assess_query():
     filter_dict = dict(request.args)
     # when there are no request arguments
     # set filter to arguments in session
-    # or restrict results to severity Critical
+    # or restrict results to nonexistent severity level
     if len(filter_dict) == 0:
-        if flask.session.get(ASSESSMENT_ARGS):
+        # do 'or isinstance' dict in case the assessment args are {} which means 'All Levels'
+        if flask.session.get(ASSESSMENT_ARGS) or isinstance(flask.session.get(ASSESSMENT_ARGS), dict):
             filter_dict = flask.session.get(ASSESSMENT_ARGS)
         else:
-            filter_dict['severity'] = 'Critical'
+            filter_dict['severity'] = 'not_defined'
     # remove empty values and not valid keys
     filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
-    # set return_to if user is logged in
+    # set return_to
     flask.session['return_to'] = ASSESSMENT
     flask.session[ASSESSMENT_ARGS] = filter_dict.copy()
     assess = Assessment.objects(**filter_dict)
@@ -534,7 +533,6 @@ def assess_update():
                 if request.args.get('v_id'):
                     v_record = Vulnerability.objects(id=request.args.get('v_id')).first()
                 else:
-                    # TODO: check execution plan for this query
                     v_record = Vulnerability.objects(project=assess.project,
                                                      image=assess.image,
                                                      package=assess.package,
@@ -570,7 +568,7 @@ def get_projects(last_seen):
     projects = Project.objects(last_seen=last_seen).order_by('name')
     if projects:
         for pro in projects:
-            log.info('rmi project: %s %s %s %s' % (pro.name, pro.number, pro.last_seen, pro.id))
+            log.info('project: %s %s %s %s' % (pro.name, pro.number, pro.last_seen, pro.id))
             p_data.append(dict(number=pro.number, id=pro.id, name=pro.name))
     else:
         log.warning('no projects available')
@@ -674,20 +672,6 @@ def create_vulnerability(data, project_id, last_seen, running_images):
     return dict(updated=0, created=create_count, duration=end - start)
 
 
-def get_vulnerabilities(last_seen):
-    vulnerabilities = Vulnerability.objects(last_seen=last_seen)
-    if vulnerabilities:
-        for v in vulnerabilities:
-            log.info('rmi v: %s %s %s %s %s %s' % (v.project.name,
-                                                   v.image,
-                                                   v.package,
-                                                   v.cve_id,
-                                                   v.severity,
-                                                   v.last_seen))
-    else:
-        log.debug('no vulnerabilities available')
-
-
 @app.route('/test', methods=['GET'])
 def test_report():
     last_seen = Update.objects.all().order_by('-datetime')[0].datetime
@@ -743,9 +727,10 @@ def vreport():
         if flask.session.get(VREPORT_ARGS):
             filter_dict = flask.session.get(VREPORT_ARGS)
         else:
-            filter_dict['severity'] = 'Critical'
-    # remove empty values and not valid keys
-    filter_dict = {k: v for k, v in filter_dict.items() if v and k in valid_filters}
+            # show no results by setting invalid severity level
+            filter_dict['severity'] = 'not_defined'
+    # remove empty values, not valid keys and remove whitespace left of value
+    filter_dict = {k: v.lstrip() for k, v in filter_dict.items() if v and k in valid_filters}
     # store query in session
     # set return_to and args for navigation back to vreport
     flask.session['return_to'] = VREPORT
@@ -765,17 +750,24 @@ def vreport():
                 filter_dict[key] = True
             else:
                 filter_dict[key] = False
-    # log.debug('rmi filter dict: %r' % filter_dict)
-    # get projects
-    projects = Project.objects(last_seen=last_seen).order_by('name')
-    p = json.loads(projects.to_json())
+    # prepare query for vulnerabilities
+    v_query = filter_dict.copy()
+    # change keys to key__startswith for a search by a partial string
+    for key in ['image']:
+        if key in v_query.keys():
+            value = v_query[key]
+            v_query.pop(key)
+            v_query['__'.join([key, 'startswith'])] = value
     # get vulnerabilities
-    vulnerabilities = Vulnerability.objects(**filter_dict)
+    vulnerabilities = Vulnerability.objects(**v_query)
     if not vulnerabilities:
         flash('No vulnerabilities available!')
         v = []
     else:
         v = json.loads(vulnerabilities.to_json())
+    # get projects
+    projects = Project.objects(last_seen=last_seen).order_by('name')
+    p = json.loads(projects.to_json())
     filter_param = url_encode(filter_dict)
     return render_template('vreport.html',
                            vulnerabilities=v,
@@ -803,7 +795,7 @@ def import_data_from_harbor():
     if request.args.get('create'):
         # delete all vulnerabilities
         deleted_count = Vulnerability.objects.delete()
-        log.debug('deleted vulnerabilities: %s' % deleted_count)
+        log.info('deleted vulnerabilities: %s' % deleted_count)
     # clear cache in harbor adapter
     clear_cache()
     # set time of update
@@ -835,7 +827,7 @@ def import_data_from_harbor():
                                                  project_id=p['number'],
                                                  severity_level='',
                                                  cve_id='')
-            log.debug('start update for project  %s %s' % (p['number'], p['name']))
+            log.info('start update for project  %s %s' % (p['number'], p['name']))
             if request.args.get('create'):
                 stats = create_vulnerability(report_info, p['id'], up_datetime, running_images)
             else:
@@ -843,17 +835,18 @@ def import_data_from_harbor():
             updated += stats['updated']
             created += stats['created']
             duration += stats['duration']
-            log.debug('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
-                                                                               stats['updated'],
-                                                                               stats['created'],
-                                                                               stats['duration']))
+            log.info('project nr: %s updated: %s created: %s duration: %s' % (p['number'],
+                                                                              stats['updated'],
+                                                                              stats['created'],
+                                                                              stats['duration']))
     except MaxRetryError:
         log.error('Connection to "%s" failed, vulnerability data is not up-to-date!' % arg_registry)
         _set_state_warning('last import of vulnerability data at %s failed,'
                            ' data is not consistent!' % up_datetime.strftime('%Y-%m-%d %H:%M:%S'))
         return redirect(url_for('vreport'))
-    log.debug('update vulnerabilities duration: %s' % duration)
-    log.debug('updated: %s, created: %s' % (updated, created))
+    log.info('------------- import of vulnerabilities finished -------------')
+    log.info('update vulnerabilities duration: %s' % duration)
+    log.info('updated: %s, created: %s' % (updated, created))
     # store update time and registry in database
     Update(registry=arg_registry,
            datetime=up_datetime,

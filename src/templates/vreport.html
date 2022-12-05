@@ -35,11 +35,11 @@
                 </div>
                 <div class="form-check form-check-inline">
                     <input type="checkbox" class="form-check-input" id="running_in_gz" name="running_in_gz" {{ 'checked' if filters.get('running_in_gz') else '' }}>
-                    <label class="form-check-label" for="running_in_gz">running in Globale Zone</label>
+                    <label class="form-check-label" for="running_in_gz"><small>AND</small> running in Globale Zone</label>
                 </div>
                 <div class="form-check form-check-inline">
                     <input type="checkbox" class="form-check-input" id="running_in_pz" name="running_in_pz"  {{ 'checked' if filters.get('running_in_pz') else '' }}>
-                    <label class="form-check-label" for="running_in_pz">running in Private Zone</label>
+                    <label class="form-check-label" for="running_in_pz"><small>AND</small> running in Private Zone</label>
                 </div>
                 <div class="float-right">
                     <button class="btn btn-success btn-sm">Search</button>
