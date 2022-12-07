@@ -240,7 +240,7 @@ def load_user(user_id):
 
 
 def admin_required(func):
-    # check if current user has name 'admin', if not show "forbidden"
+    # check if current user is 'admin', if not show "forbidden"
     @wraps(func)
     # required for 'url_for' see
     # https://stackoverflow.com/questions/14114296/why-does-flasks-url-for-throw-an-error-when-using-a-decorator-on-that-item-in-p
@@ -797,7 +797,7 @@ def import_data_from_harbor():
         deleted_count = Vulnerability.objects.delete()
         log.info('deleted vulnerabilities: %s' % deleted_count)
     # clear cache in harbor adapter
-    clear_cache()
+    log.info('clear cache: %r' % harbor.clear_cache())
     # set time of update
     up_datetime = datetime.utcnow()
     # get projects from harbor
