@@ -681,7 +681,7 @@ def test_report():
     # get_projects(last_seen)
     vulnerabilities = Vulnerability.objects(**filter_dict)
     if not vulnerabilities:
-        flash('No vulnerabilities available!')
+        flash('No vulnerabilities found!')
         return jsonify({'error': 'data not found'})
     else:
         v = json.loads(vulnerabilities.to_json())
@@ -791,7 +791,7 @@ def _set_state_warning(message):
 @app.route('/import/v_scan_data', methods=['GET'])
 def import_data_from_harbor():
     # set warning during import
-    _set_state_warning('import of vulnerability data ist running, reports may be inconsistent!')
+    _set_state_warning('import of vulnerability data is running, reports may be inconsistent!')
     if request.args.get('create'):
         # delete all vulnerabilities
         deleted_count = Vulnerability.objects.delete()
